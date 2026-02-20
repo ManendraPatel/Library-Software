@@ -114,6 +114,7 @@
     align-items: center;
     margin-bottom: 8px;
     border: 1px solid #dee2e6;
+	border-collapse: collapse;
 }
 
 .table-wrapper-report table { width: 100%; border-collapse: collapse; background: white; }
@@ -933,9 +934,11 @@
             
             <button onclick="drawPendingReport()" class="btn-premium-red">Show Pending List</button>
             <button onclick="downloadPendingPDF()" class="btn-premium-blue"><i class="fa fa-file-pdf"></i> PDF</button>
+			
+			<div class="badge-count">Total: <span id="penCount">0</span> Students</div>
         </div>
         <input type="text" id="reportSearch" placeholder="Search Name/Seat..." onkeyup="filterReportTable()" class="premium-input-search" style="width:200px;">
-        <div class="badge-count">Total: <span id="penCount">0</span> Students</div>
+        
     </div>
 
     <div class="table-wrapper-report">
@@ -972,8 +975,9 @@
 		<button onclick="downloadPaidPDF()" class="btn-premium-red" style="background:#e74c3c;">
             <i class="fa fa-file-pdf"></i> Download PDF
         </button>
+		<div class="badge-count">TOTAL STUDENTS: <span id="paidTxCount">0</span></div>
     </div>
-    <div class="badge-count">TOTAL STUDENTS: <span id="paidTxCount">0</span></div>
+    
 </div>
 
     <div class="table-wrapper-report">
@@ -1177,7 +1181,7 @@
         </div>
 
         <button onclick="saveStd()" style="background:linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color:white; width:50%; padding:8px; border:none; border-radius:15px; margin-top:18px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 10px 20px rgba(30, 60, 114, 0.2);">
-            <i class="fa fa-save"></i> Save Admission & Cloud Sync
+            <i class="fa fa-save"></i> Save Admission
         </button>
     </div>
 </div>
@@ -1204,7 +1208,7 @@
             <i class="fa fa-check-circle"></i>
         </div>
         <h3 style="margin: 0; color: #2c3e50;">Success!</h3>
-        <p style="color: #666; margin: 10px 0 20px 0;">Fee record successfully saved.</p>
+        <p style="color: #666; margin: 10px 0 20px 0;">Fee paid successfully.</p>
         <button onclick="closeSuccessModal()" class="btn-act" style="background:#27ae60; width: 100%; padding: 12px; border-radius: 10px;">Ok</button>
     </div>
 </div>
@@ -1234,7 +1238,7 @@
             <input type="checkbox" id="exCheck" style="width:20px; height:20px; cursor:pointer;" onchange="markAsExStudent()">
         </div>
 
-        <div id="sData" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; background:#f8f9fa; padding:20px; border-radius:12px; border: 1px solid #eee;">
+        <div id="sData" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; background:#f8f9fa; padding:8px; border-radius:12px; border: 2px solid #eee;">
             </div>
 
         <button onclick="tglID()" class="btn-act" style="background:var(--accent); padding: 10px 15px; margin-bottom: 15px;">
@@ -1359,7 +1363,7 @@
         </div>
 
         <div class="footer-social">
-            <a href="https://wa.me/91XXXXXXXXXX" target="_blank" title="WhatsApp Support">
+            <a href="https://wa.me/919918658008" target="_blank" title="WhatsApp Support">
                 <i class="fab fa-whatsapp"></i>
             </a>
             <a href="https://www.instagram.com/manendra.patel_ms/" target="_blank" title="Instagram">
@@ -1494,7 +1498,7 @@ function saveStd() {
     const name = document.getElementById('n').value.trim();
 
     if (!name || !st) {
-        alert("Student Name aur Seat Number bharna zaroori hai!");
+        alert("Student Name and Seat Number is mandatory!");
         return;
     }
 
@@ -1530,7 +1534,7 @@ function saveStd() {
     });
 
     if (conflict) {
-        alert(`🚨 Seat Conflict! Seat No. ${st} pehle se hi "${conflict.shift}" ke liye occupied hai (${conflict.name} ke dwara).`);
+        alert(`🚨 Seat Conflict! Seat No. ${st} is already occupied for (${conflict.name} ).`);
         return; // Admission cancel
     }
     // --- SEAT VALIDATION LOGIC END ---
@@ -1576,7 +1580,7 @@ function previewPremiumPhoto(event) {
     if (file) {
         // Validation: 25KB check (Aapke UI ke hisab se)
         if (file.size > 25600) { 
-            alert("🚨 Photo size 25KB se zyada hai! Please compress karke upload karein.");
+            alert("🚨 Photo size is more than 25KB .");
             event.target.value = ''; 
             return;
         }
@@ -1600,7 +1604,7 @@ function markAsExStudent() {
     const chk = document.getElementById('exCheck');
     if (!chk.checked) return;
 
-    if (confirm("Kya aap is student ko Checkout (Ex-Student) karna chahte hain? Seat free ho jayegi.")) {
+    if (confirm("Are you want to Checkout (Ex-Student)? Seat will be free.")) {
         // 'cur' global variable hai jo viewS() mein set hota hai
         let index = db.findIndex(s => s.id === cur);
         
@@ -1623,51 +1627,62 @@ function markAsExStudent() {
             opMod('profModal', false);
             drawMain(); // Student list refresh
             
-            alert("✅ Student Ex-Student list mein bhej diya gaya hai.");
+            alert("✅ Student moved in Ex-Student List.");
         }
     } else {
         chk.checked = false;
     }
 }
 
-
 function drawPendingReport() {
     const m = document.getElementById('penMonth').value;
     const y = document.getElementById('penYear').value;
     const tb = document.getElementById('penTbody');
 
-    // Validation check
-    if (!m || !y || y === "" || y.includes("Select")) {
-        alert("🚨 Kripya pehle Month aur Year select karein!");
-        return; // Function ko yahan rok dein
+    if (!m || !y) {
+        alert("🚨 Please select Month and Year!");
+        return;
     }
 
-    const key = m + "-" + y;
+    const key = `${m}-${y}`;
     tb.innerHTML = '';
-    let totalPen = 0, totalColl = 0, count = 0;
+    let totalPendingAll = 0, totalCollAll = 0, count = 0;
 
     db.forEach(s => {
-        const monthlyFee = parseFloat(s.rt || 0);
-        const paidFee = (s.fee && s.fee[key]) ? parseFloat(s.fee[key]) : 0;
-        const pendingAmt = monthlyFee - paidFee;
+        const fixedMonthlyFee = parseFloat(s.rt || 0);
+        
+        // --- Calculation Fix: Us mahine ki saari partial payments ka total ---
+        let totalPaidInThisMonth = 0;
+        if (s.feeHistory && Array.isArray(s.feeHistory)) {
+            totalPaidInThisMonth = s.feeHistory
+                .filter(tx => tx.monthYear === key)
+                .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+        } else if (s.fee && s.fee[key]) {
+            totalPaidInThisMonth = parseFloat(s.fee[key]); // Purana data support
+        }
 
-        if (pendingAmt > 0) {
-            totalPen += pendingAmt;
-            totalColl += paidFee;
+        const remainingAmt = fixedMonthlyFee - totalPaidInThisMonth;
+
+        // Agar ₹1 bhi pending hai toh list mein dikhayein
+        if (remainingAmt > 0) {
+            totalPendingAll += remainingAmt;
+            totalCollAll += totalPaidInThisMonth;
             count++;
+
             tb.innerHTML += `
                 <tr class="report-row">
-                    <td class="st-name" style="font-weight:600;">${s.name}</td>
-                    <td>${s.phone || '-'}</td>
-                    <td class="st-seat"><span>${s.seat}</span></td>
-                    <td>₹${monthlyFee}</td>
-                    <td><b style="color:#d32f2f;">Pending: ₹${pendingAmt}</b></td>
+                    <td><b>${s.name}</b></td>
+					<td>${s.phone}</td>
+                    <td>${s.seat}</td>
+                    <td>₹${fixedMonthlyFee}</td>
+                    <td style="color:#27ae60;">Paid: ₹${totalPaidInThisMonth} <b style="color:#e74c3c;"> Pending: ₹${remainingAmt} </b></td>
+                    
                 </tr>`;
         }
     });
 
-    document.getElementById('valLeft').innerText = '₹' + totalPen.toLocaleString();
-    document.getElementById('valRight').innerText = '₹' + totalColl.toLocaleString();
+    document.getElementById('valLeft').innerText = '₹' + totalPendingAll.toLocaleString();
+    document.getElementById('valRight').innerText = '₹' + totalCollAll.toLocaleString();
     document.getElementById('penCount').innerText = count;
 }
 
@@ -1678,41 +1693,51 @@ function drawPaidReport() {
     const targetKey = `${m}-${y}`;
     const tb = document.getElementById('paidTbody');
     
-    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;">Processing...</td></tr>';
-
     rdb.ref(`library_data/Users/${uid}/collections`).once('value').then((snap) => {
-        const data = snap.val();
+        const collections = snap.val();
         tb.innerHTML = '';
-        let monthTotal = 0;
-        let count = 0;
+        let monthTotal = 0, count = 0;
 
-        if (data) {
-            Object.values(data).forEach(tx => {
-                const paidAmt = parseFloat(tx.amount || 0);
-                const fixedAmt = parseFloat(tx.fixedFee || 0);
+        // Grouping logic: Har student ki total payment nikalna us month ke liye
+        let studentMonthlyTotals = {};
 
-                if (tx.monthYear === targetKey && paidAmt >= fixedAmt && fixedAmt > 0) {
-                    monthTotal += paidAmt;
-                    count++;
-                    tb.innerHTML += `
-                        <tr>
-                            <td>${tx.date}</td>
-                            <td><b>${tx.studentName}</b></td>
-                            <td>${tx.monthYear}</td>
-                            <td>${tx.receipt}</td>
-                            <td style="color:green; font-weight:bold;">₹${paidAmt}</td>
-                        </tr>`;
+        if (collections) {
+            Object.values(collections).forEach(tx => {
+                if (tx.monthYear === targetKey) {
+                    if (!studentMonthlyTotals[tx.studentId]) {
+                        studentMonthlyTotals[tx.studentId] = {
+                            name: tx.studentName,
+                            totalPaid: 0,
+                            fixed: parseFloat(tx.fixedFee || 0),
+                            lastDate: tx.date,
+                            receipts: []
+                        };
+                    }
+                    studentMonthlyTotals[tx.studentId].totalPaid += parseFloat(tx.amount || 0);
+                    studentMonthlyTotals[tx.studentId].receipts.push(tx.receipt);
                 }
             });
         }
 
-        // Section ke andar wala green card update
-        if(document.getElementById('monthlyPaidTotal')) {
-            document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString();
+        // Displaying only Full Paid Students
+        for (let id in studentMonthlyTotals) {
+            const data = studentMonthlyTotals[id];
+            if (data.totalPaid >= data.fixed && data.fixed > 0) {
+                monthTotal += data.totalPaid;
+                count++;
+                tb.innerHTML += `
+                    <tr>
+                        <td>${data.lastDate}</td>
+                        <td><b>${data.name}</b></td>
+                        <td>${targetKey}</td>
+                        <td style="font-size:10px;">${data.receipts.join(', ')}</td>
+                        <td style="color:green; font-weight:bold;">₹${data.totalPaid}</td>
+                    </tr>`;
+            }
         }
 
+        document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString();
         document.getElementById('paidTxCount').innerText = count;
-        if (count === 0) tb.innerHTML = '<tr><td colspan="5" style="text-align:center;">No full-paid records found.</td></tr>';
     });
 }
 
@@ -1839,7 +1864,7 @@ function saveLibProfile() {
                 alert("✅ Library Profile Updated!");
             }
             
-            console.log("Profile updated and synced to cloud.");
+            console.log("Profile updated.");
         })
         .catch(err => {
             console.error("Update Error:", err);
@@ -2320,7 +2345,7 @@ function tglID() {
     const card = document.getElementById('idV');
     const s = db.find(x => x.id === cur);
 
-    if (!s) return alert("Pehle Student Profile Ledger kholein!");
+    if (!s) return alert("first opens Student Profile Ledger!");
 
     // Toggle logic: Agar pehle se khula hai toh band karein
     if (card.style.display === 'flex') {
@@ -2363,48 +2388,48 @@ function tglID() {
     card.style.display = 'flex';
 }
 
-
 function viewS(id) {
     cur = id;
     let s = db.find(x => x.id == id);
     if (!s) return alert("Student record nahi mila!");
 
-    // --- IMPORTANT: Naya student select hote hi ID card chhupao ---
-    if (document.getElementById('idV')) {
-        document.getElementById('idV').style.display = 'none';
-    }
-
-    // Header data fill karein
     document.getElementById('sData').innerHTML = `
         <div><b>Name:</b> ${s.name}</div>
+		<div><b>Father's:</b> ${s.father || '-'}</div>
+		<div><b>Mother's:</b> ${s.mother || '-'}</div>
         <div><b>Seat No:</b> ${s.seat}</div>
-        <div><b>Shift:</b> ${s.shift}</div>
         <div><b>Monthly Fee:</b> ₹${s.rt || 0}</div>
-        <div><b>Mobile:</b> ${s.phone}</div>
-        <div><b>DOJ:</b> ${s.date}</div>
+        <div><b>Mobile:</b> ${s.phone || '-'}</div>
     `;
 
-    // Fee History Table Fill
     let tb = document.getElementById('sBody');
     let totalPaid = 0;
     tb.innerHTML = '';
 
-    if (s.fee) {
-        Object.keys(s.fee).forEach(key => {
-            let amt = parseFloat(s.fee[key] || 0);
-            if (amt > 0) {
-                totalPaid += amt;
-                let rNo = s.fReceipts ? s.fReceipts[key] : 'N/A';
-                tb.innerHTML += `
-                    <tr>
-                        <td>${key}</td>
-                        <td>${s.fDates ? s.fDates[key] : '-'}</td>
-                        <td style="color:#1e3c72; font-weight:bold;">${rNo}</td>
-                        <td>₹${amt}</td>
-                    </tr>`;
-            }
+    // Logic: Sabse pehle feeHistory array ko check karein
+    if (s.feeHistory && s.feeHistory.length > 0) {
+        // Latest payment hamesha top par
+        [...s.feeHistory].reverse().forEach(tx => {
+            totalPaid += parseFloat(tx.amount || 0);
+            tb.innerHTML += `
+                <tr>
+                    <td>${tx.monthYear}</td>
+                    <td>${tx.date}</td>
+                    <td style="color:#f1c40f; font-weight:bold;">${tx.receipt}</td>
+                    <td>₹${tx.amount}</td>
+                </tr>`;
         });
+    } else {
+        // Fallback for old legacy data
+        if (s.fee) {
+            Object.keys(s.fee).forEach(key => {
+                let amt = parseFloat(s.fee[key] || 0);
+                totalPaid += amt;
+                tb.innerHTML += `<tr><td>${key}</td><td>-</td><td>Legacy</td><td>₹${amt}</td></tr>`;
+            });
+        }
     }
+
     document.getElementById('sPd').innerText = totalPaid;
     opMod('profModal', true);
 }
@@ -2469,33 +2494,6 @@ function verifyAndProcessFee() {
 }
 
 
-function executeExpenseSaving() {
-    const reason = document.getElementById('exReason').value.trim();
-    const amount = parseFloat(document.getElementById('exAmt').value);
-
-    const newEx = {
-        id: Date.now(),
-        date: new Date().toLocaleDateString(),
-        reason: reason,
-        amt: amount
-    };
-
-    ex.push(newEx);
-    sync(); // Cloud Sync (Firebase)
-    drawEx(); // Refresh Table
-    
-    // Inputs clear karein
-    document.getElementById('exReason').value = '';
-    document.getElementById('exAmt').value = '';
-
-    // Same Success Modal jo fee payment mein aata hai
-    if(document.getElementById('successModal')) {
-        document.getElementById('successModal').style.display = 'flex';
-        document.querySelector('#successModal p').innerText = "Expense successfully added to records!";
-    }
-}
-
-// 4. Final Saving Logic (Purana logic bina prompt ke)
 function executeFeeSaving() {
     let s = db.find(x => x.id === cur);
     let m = document.getElementById('pM').value;
@@ -2505,15 +2503,31 @@ function executeFeeSaving() {
     const receiptID = "MS-" + Math.floor(100000 + Math.random() * 900000);
     const today = new Date().toLocaleDateString();
 
+    // --- MULTIPLE ENTRY FIX START ---
+    // Agar feeHistory nahi hai toh empty array banayein
+    if (!s.feeHistory || !Array.isArray(s.feeHistory)) {
+        s.feeHistory = [];
+    }
+
+    // Naya object banayein
+    const newTx = {
+        monthYear: monthKey,
+        amount: amt,
+        date: today,
+        receipt: receiptID
+    };
+
+    // Array mein push karein (Duplicate allow karega partial payment ke liye)
+    s.feeHistory.push(newTx);
+
+    // Backward compatibility (Total sum update karein)
     if (!s.fee) s.fee = {};
-    if (!s.fDates) s.fDates = {};
-    if (!s.fReceipts) s.fReceipts = {}; 
-    
-    s.fee[monthKey] = amt;
-    s.fDates[monthKey] = today;
-    s.fReceipts[monthKey] = receiptID;
+    s.fee[monthKey] = (parseFloat(s.fee[monthKey]) || 0) + amt;
+    // --- MULTIPLE ENTRY FIX END ---
 
     const uid = localStorage.getItem('uid');
+    
+    // Collections (Individual Transactions) hamesha alag push honge
     const permanentEntry = {
         date: today,
         studentName: s.name,
@@ -2524,13 +2538,15 @@ function executeFeeSaving() {
         receipt: receiptID
     };
 
+    // Cloud aur Local Sync
     rdb.ref(`library_data/Users/${uid}/collections`).push(permanentEntry);
-    sync(); 
+    sync(); // Yeh db array ko Firebase par update karega
+    
     generateReceipt(s, m, y, amt, receiptID);
     
-    alert("✅ Fee successfully saved!");
+    document.getElementById('successModal').style.display = 'flex'; 
     document.getElementById('fBox').style.display = 'none';
-    drawMain();
+    if(typeof drawMain === "function") drawMain();
 }
 
 
@@ -2578,44 +2594,6 @@ function closeSuccessModal() {
     document.getElementById('successModal').style.display = 'none';
 }
 
-function executeFeeSaving() {
-    let s = db.find(x => x.id === cur);
-    let m = document.getElementById('pM').value;
-    let y = document.getElementById('pY').value;
-    let amt = parseFloat(document.getElementById('pA').value) || 0;
-    const monthKey = `${m}-${y}`;
-    const receiptID = "MS-" + Math.floor(100000 + Math.random() * 900000);
-    const today = new Date().toLocaleDateString();
-
-    if (!s.fee) s.fee = {};
-    if (!s.fDates) s.fDates = {};
-    if (!s.fReceipts) s.fReceipts = {}; 
-    
-    s.fee[monthKey] = amt;
-    s.fDates[monthKey] = today;
-    s.fReceipts[monthKey] = receiptID;
-
-    const uid = localStorage.getItem('uid');
-    const permanentEntry = {
-        date: today,
-        studentName: s.name,
-        studentId: s.id,
-        monthYear: monthKey,
-        amount: amt,
-        fixedFee: parseFloat(s.rt || 0),
-        receipt: receiptID
-    };
-
-    rdb.ref(`library_data/Users/${uid}/collections`).push(permanentEntry);
-    sync(); 
-    generateReceipt(s, m, y, amt, receiptID);
-    
-    // --- FIX: Alert hata kar Custom Modal dikhayein ---
-    document.getElementById('successModal').style.display = 'flex'; 
-    
-    document.getElementById('fBox').style.display = 'none';
-    if(typeof drawMain === "function") drawMain();
-}
 
 
 function goHome() {
