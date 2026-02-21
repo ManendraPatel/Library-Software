@@ -985,8 +985,9 @@
             <thead>
                 <tr style="background:#2c3e50; color:white;">
                     <th>Date</th>
-                    <th>Student Name (Legacy)</th>
+                    <th>Student Name</th>
                     <th>Month-Year</th>
+					<th>Monthly Fee</th>
                     <th>Receipt No</th>
                     <th>Amount</th>
                 </tr>
@@ -1493,8 +1494,8 @@ function loadAllLibraryData() {
 
 function saveStd() {
     const id = document.getElementById('eid').value;
-    const st = document.getElementById('st').value.trim(); // Seat No
-    const sh = document.getElementById('sh').value;      // Selected Shift
+    const st = document.getElementById('st').value.trim(); 
+    const sh = document.getElementById('sh').value;      
     const name = document.getElementById('n').value.trim();
 
     if (!name || !st) {
@@ -1503,43 +1504,22 @@ function saveStd() {
     }
 
     // --- SEAT VALIDATION LOGIC START ---
-    // Check if seat is already occupied based on rules
     const conflict = db.find(s => {
-        // Apne aap ko ignore karein agar edit kar rahe hain
         if (id && s.id == id) return false;
-
         if (s.seat == st) {
-            // Rule 1: Agar naya admission Full Day hai
-            if (sh === "Full Day") {
-                // Toh wahan koi bhi Morning, Afternoon ya Full Day wala nahi hona chahiye
-                if (s.shift === "Full Day" || s.shift.includes("Morning") || s.shift.includes("Afternoon")) {
-                    return true;
-                }
-            }
-            
-            // Rule 2: Agar naya admission Morning ya Afternoon hai
-            if (sh.includes("Morning") || sh.includes("Afternoon")) {
-                // Toh wahan pehle se Full Day wala ya wahi same shift wala nahi hona chahiye
-                if (s.shift === "Full Day" || s.shift === sh) {
-                    return true;
-                }
-            }
-
-            // Rule 3: Night Shift Logic
-            if (sh === "Night Shift" && s.shift === "Night Shift") {
-                return true;
-            }
+            if (sh === "Full Day" && (s.shift === "Full Day" || s.shift.includes("Morning") || s.shift.includes("Afternoon"))) return true;
+            if ((sh.includes("Morning") || sh.includes("Afternoon")) && (s.shift === "Full Day" || s.shift === sh)) return true;
+            if (sh === "Night Shift" && s.shift === "Night Shift") return true;
         }
         return false;
     });
 
     if (conflict) {
-        alert(`🚨 Seat Conflict! Seat No. ${st} is already occupied for (${conflict.name} ).`);
-        return; // Admission cancel
+        alert(`🚨 Seat Conflict! Seat No. ${st} is already occupied by ${conflict.name}.`);
+        return;
     }
     // --- SEAT VALIDATION LOGIC END ---
 
-    // Baki saving logic...
     const photoData = document.getElementById('formPhotoPreview').src;
     const sData = {
         id: id ? parseInt(id) : Date.now(),
@@ -1553,10 +1533,9 @@ function saveStd() {
         rt: document.getElementById('rt').value || 0,
         address: document.getElementById('ad').value || '',
         photo: photoData.startsWith('data:image') ? photoData : '',
-        date: id ? db.find(x => x.id == id).date : new Date().toLocaleDateString(),
-        fee: id ? (db.find(x => x.id == id).fee || {}) : {},
-        fDates: id ? (db.find(x => x.id == id).fDates || {}) : {},
-        fReceipts: id ? (db.find(x => x.id == id).fReceipts || {}) : {}
+        date: new Date().toLocaleDateString('en-IN'),
+        feeHistory: [], 
+        fee: {}
     };
 
     if(id) {
@@ -1564,12 +1543,19 @@ function saveStd() {
         db[idx] = sData;
     } else {
         db.push(sData);
+        // FIX: Agar Re-admission mode tha, toh Ex-list se student hatayein
+        if (window.pendingReAdmissionId) {
+            exStd = exStd.filter(student => student.id !== window.pendingReAdmissionId);
+            window.pendingReAdmissionId = null;
+        }
     }
 
     sync(); 
     opMod('addModal', false);
     clrF();
     alert("✅ Admission Successful!");
+    drawMain();
+    if(typeof drawExStudents === "function") drawExStudents();
 }
 
 function previewPremiumPhoto(event) {
@@ -1691,33 +1677,32 @@ function drawPaidReport() {
     const m = document.getElementById('paidMonth').value;
     const y = document.getElementById('paidYear').value;
     
-    if (!m || !y) {
-        alert("🚨 Please select Month and Year!");
-        return;
-    }
+    if (!m || !y) return; // Refresh par alert nahi aayega
 
     const targetKey = `${m}-${y}`;
     const tb = document.getElementById('paidTbody');
-    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;">Processing Report...</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;">Filtering Full Paid Students...</td></tr>';
 
     rdb.ref(`library_data/Users/${uid}/collections`).once('value').then((snap) => {
         const collections = snap.val();
         tb.innerHTML = '';
         let monthTotal = 0;
-        
-        // --- NEW: Grouping Object ---
         let groupedData = {}; 
 
         if (collections) {
             Object.values(collections).forEach(tx => {
                 if (tx.monthYear === targetKey) {
-                    const sId = tx.studentId || tx.studentName; // Unique ID handle
+                    const sId = tx.studentId || tx.studentName;
                     
                     if (!groupedData[sId]) {
+                        // Student ki fixed monthly fee dhoondhna
+                        let studentObj = db.find(std => std.id == tx.studentId) || { rt: 0 };
+                        
                         groupedData[sId] = {
                             date: tx.date,
                             name: tx.studentName,
                             month: tx.monthYear,
+                            monthlyFee: parseFloat(studentObj.rt || 0), // Monthly Fee column ke liye
                             totalAmt: 0,
                             receipts: []
                         };
@@ -1728,29 +1713,29 @@ function drawPaidReport() {
             });
         }
 
-        // Display the Grouped Data
         let studentCount = 0;
-        const finalEntries = Object.values(groupedData);
+        Object.values(groupedData).forEach(data => {
+            // --- NEW LOGIC: Sirf tab dikhayein jab Paid Amount >= Monthly Fee ho ---
+            if (data.totalAmt >= data.monthlyFee && data.monthlyFee > 0) {
+                studentCount++;
+                monthTotal += data.totalAmt;
 
-        finalEntries.forEach(data => {
-            studentCount++;
-            monthTotal += data.totalAmt;
-
-            tb.innerHTML += `
-                <tr>
-                    <td>${data.date}</td>
-                    <td><b>${data.name}</b></td>
-                    <td>${data.month}</td>
-                    <td style="font-size:11px; color:#555;">${data.receipts.join(', ')}</td>
-                    <td style="color:#27ae60; font-weight:bold;">₹${data.totalAmt}</td>
-                </tr>`;
+                tb.innerHTML += `
+                    <tr>
+                        <td>${data.date}</td>
+                        <td><b>${data.name}</b></td>
+                        <td>${data.month}</td>
+                        <td style="color:#2c3e50; font-weight:bold;">₹${data.monthlyFee}</td> <td style="font-size:11px; color:#555;">${data.receipts.join(', ')}</td>
+                        <td style="color:#27ae60; font-weight:bold;">₹${data.totalAmt}</td>
+                    </tr>`;
+            }
         });
 
-        document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString('en-IN');
+        document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString();
         document.getElementById('paidTxCount').innerText = studentCount;
 
         if (studentCount === 0) {
-            tb.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#888;">No data for this month.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#888;">No full-paid records found for this month.</td></tr>';
         }
     });
 }
@@ -1960,29 +1945,33 @@ function drawExStudents() {
     });
 }
 
-// Re-Admission Logic
 function reAdmission(index) {
     let s = exStd[index];
+    if(!s) return;
     
-    // Admission Modal mein purana data bharna
-    document.getElementById('eid').value = s.id;
+    // Form mein data bharna
+    document.getElementById('eid').value = ""; // ID khali taaki naya admission ho
     document.getElementById('n').value = s.name;
     document.getElementById('fn').value = s.father || '';
-	document.getElementById('mn').value = s.mother || '';
+    document.getElementById('mn').value = s.mother || '';
     document.getElementById('p').value = s.phone || '';
-    document.getElementById('st').value = s.seat;
-	document.getElementById('en').value = s.emergency || '';
-    document.getElementById('sh').value = s.shift;
-    document.getElementById('rt').value = s.rt || s.Fee || 0;
+    document.getElementById('rt').value = s.rt || 0;
     document.getElementById('ad').value = s.address || '';
     
-    // Ex-Student list se abhi nahi hatayenge, saveStd() hone par purana record handle karein
-    // Ya phir yahan se turant delete karke Admission open karein:
-    if(confirm("Add new seat no.")) {
-        exStd.splice(index, 1); // Ex-list se hataya
-        sync();
-        opMod('addModal', true);
+    // Student photo preview handle karein
+    const preview = document.getElementById('formPhotoPreview');
+    const uploadTxt = document.getElementById('uploadTxt');
+    if (s.photo) {
+        preview.src = s.photo;
+        preview.style.display = 'block';
+        if(uploadTxt) uploadTxt.style.display = 'none';
     }
+
+    // Index ko save karein taaki save hone par ID ke basis par Ex-list se delete karein
+    window.pendingReAdmissionId = s.id; 
+    
+    opMod('addModal', true);
+    alert("Old data founded! Please select new seat and shift.");
 }
 
 // Permanent Delete from Ex-Student List
@@ -1996,7 +1985,7 @@ function deleteExStudent(index) {
 
 function viewExS(index) {
     let s = exStd[index];
-    if (!s) return alert("Student record nahi mila!");
+    if (!s) return alert("Student record not found!");
 
     // Ledger Modal ko reset karein aur data bharein
     // Hum Ledger modal ki wahi IDs use kar rahe hain jo main students ke liye hain
@@ -3028,12 +3017,15 @@ function downloadPaidPDF() {
 
     // --- LOGO ADD ---
     if (logoImgSrc && logoImgSrc.startsWith('data:image')) {
-        doc.addImage(logoImgSrc, 'PNG', 15, 10, 22, 22);
+        try {
+            doc.addImage(logoImgSrc, 'PNG', 15, 10, 22, 22);
+        } catch(e) { console.warn("Logo error in PDF:", e); }
     }
 
+    // Header Details
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
-    doc.setTextColor(46, 204, 113);
+    doc.setTextColor(46, 204, 113); // Green color for Paid Report
     doc.text(libName, 105, 18, { align: 'center' });
     
     doc.setFontSize(9);
@@ -3041,39 +3033,48 @@ function downloadPaidPDF() {
     doc.setTextColor(100);
     doc.text(libAddr, 105, 24, { align: 'center' });
     doc.text("Mobile: " + libMob, 105, 28, { align: 'center' });
+    doc.setFont("helvetica", "bold");
     doc.text(`Full Paid Students Report: ${m}-${y}`, 105, 34, { align: 'center' });
     doc.line(15, 38, 195, 38);
 
     const rows = [];
     let totalCollection = 0;
+    
+    // Table se data uthana (Total 6 columns: Date, Name, Month, Monthly Fee, Receipt, Amount)
     document.querySelectorAll("#paidTbody tr").forEach(tr => {
         const rowData = [];
         const tds = tr.querySelectorAll("td");
-        if(tds.length >= 5) {
-            const amtText = tds[4].innerText.replace(/₹|Rs\.|\s|,/g, "");
+        
+        // Ensure karein ki ye empty row nahi hai
+        if(tds.length >= 6) {
+            const amtText = tds[5].innerText.replace(/₹|Rs\.|\s|,/g, "");
             totalCollection += parseFloat(amtText) || 0;
 
-            rowData.push(tds[0].innerText);
-            rowData.push(tds[1].innerText);
-            rowData.push(tds[2].innerText);
-            rowData.push(tds[3].innerText);
-            rowData.push(tds[4].innerText.replace(/₹/g, "Rs. "));
+            rowData.push(tds[0].innerText); // Date
+            rowData.push(tds[1].innerText); // Name
+            rowData.push(tds[2].innerText); // Month-Year
+            rowData.push(tds[3].innerText); // Monthly Fee
+            rowData.push(tds[4].innerText); // Receipt No
+            rowData.push(tds[5].innerText.replace(/₹/g, "Rs. ")); // Paid Amount
             rows.push(rowData);
         }
     });
 
+    // jsPDF-AutoTable configuration
     doc.autoTable({
-        head: [['Date', 'Student Name', 'Month-Year', 'Receipt No', 'Amount']],
+        head: [['Date', 'Student Name', 'Month-Year', 'Monthly Fee', 'Receipt No', 'Amount Paid']],
         body: rows,
         startY: 42,
         theme: 'grid',
-        headStyles: { fillColor: [46, 204, 113] },
+        headStyles: { fillColor: [46, 204, 113], fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3 },
         // --- BOTTOM TOTAL COUNT ---
-        foot: [['TOTAL PAID', '', '', `Students: ${rows.length}`, `Rs. ${totalCollection}`]],
-        footStyles: { fillColor: [46, 204, 113], fontStyle: 'bold' }
+        foot: [['TOTAL PAID', '', '', '', `Students: ${rows.length}`, `Rs. ${totalCollection}`]],
+        footStyles: { fillColor: [46, 204, 113], fontStyle: 'bold', fontSize: 9 }
     });
 
-    doc.save(`Paid_Report_${m}_${y}.pdf`);
+    // File Save
+    doc.save(`Full_Paid_Report_${m}_${y}.pdf`);
 }
 
 function resetFeeForm() {
