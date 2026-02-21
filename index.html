@@ -269,7 +269,7 @@
 
 .label-box {
     background: #ff0000;
-    font-size: 10px;
+    font-size: 11px;
     padding: 2px 6px;
     font-weight: 600;
     display: inline-block;
@@ -1690,56 +1690,71 @@ function drawPaidReport() {
     const uid = localStorage.getItem('uid');
     const m = document.getElementById('paidMonth').value;
     const y = document.getElementById('paidYear').value;
+    
+    if (!m || !y) {
+        alert("🚨 Please select Month and Year!");
+        return;
+    }
+
     const targetKey = `${m}-${y}`;
     const tb = document.getElementById('paidTbody');
-    
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;">Processing Report...</td></tr>';
+
     rdb.ref(`library_data/Users/${uid}/collections`).once('value').then((snap) => {
         const collections = snap.val();
         tb.innerHTML = '';
-        let monthTotal = 0, count = 0;
-
-        // Grouping logic: Har student ki total payment nikalna us month ke liye
-        let studentMonthlyTotals = {};
+        let monthTotal = 0;
+        
+        // --- NEW: Grouping Object ---
+        let groupedData = {}; 
 
         if (collections) {
             Object.values(collections).forEach(tx => {
                 if (tx.monthYear === targetKey) {
-                    if (!studentMonthlyTotals[tx.studentId]) {
-                        studentMonthlyTotals[tx.studentId] = {
+                    const sId = tx.studentId || tx.studentName; // Unique ID handle
+                    
+                    if (!groupedData[sId]) {
+                        groupedData[sId] = {
+                            date: tx.date,
                             name: tx.studentName,
-                            totalPaid: 0,
-                            fixed: parseFloat(tx.fixedFee || 0),
-                            lastDate: tx.date,
+                            month: tx.monthYear,
+                            totalAmt: 0,
                             receipts: []
                         };
                     }
-                    studentMonthlyTotals[tx.studentId].totalPaid += parseFloat(tx.amount || 0);
-                    studentMonthlyTotals[tx.studentId].receipts.push(tx.receipt);
+                    groupedData[sId].totalAmt += parseFloat(tx.amount || 0);
+                    groupedData[sId].receipts.push(tx.receipt);
                 }
             });
         }
 
-        // Displaying only Full Paid Students
-        for (let id in studentMonthlyTotals) {
-            const data = studentMonthlyTotals[id];
-            if (data.totalPaid >= data.fixed && data.fixed > 0) {
-                monthTotal += data.totalPaid;
-                count++;
-                tb.innerHTML += `
-                    <tr>
-                        <td>${data.lastDate}</td>
-                        <td><b>${data.name}</b></td>
-                        <td>${targetKey}</td>
-                        <td style="font-size:10px;">${data.receipts.join(', ')}</td>
-                        <td style="color:green; font-weight:bold;">₹${data.totalPaid}</td>
-                    </tr>`;
-            }
-        }
+        // Display the Grouped Data
+        let studentCount = 0;
+        const finalEntries = Object.values(groupedData);
 
-        document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString();
-        document.getElementById('paidTxCount').innerText = count;
+        finalEntries.forEach(data => {
+            studentCount++;
+            monthTotal += data.totalAmt;
+
+            tb.innerHTML += `
+                <tr>
+                    <td>${data.date}</td>
+                    <td><b>${data.name}</b></td>
+                    <td>${data.month}</td>
+                    <td style="font-size:11px; color:#555;">${data.receipts.join(', ')}</td>
+                    <td style="color:#27ae60; font-weight:bold;">₹${data.totalAmt}</td>
+                </tr>`;
+        });
+
+        document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString('en-IN');
+        document.getElementById('paidTxCount').innerText = studentCount;
+
+        if (studentCount === 0) {
+            tb.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#888;">No data for this month.</td></tr>';
+        }
     });
 }
+
 
 function updateReportStats(lVal, rVal, count) {
     // Check karein ki IDs exist karti hain ya nahi
@@ -2240,45 +2255,111 @@ function loadStudentsByShift() {
 }
 
 
+// Search button function
 function getStdForFee() {
     const sh = document.getElementById('fShft').value;
     const st = document.getElementById('fSeat').value;
     
-    if (!sh || !st) {
-        alert("First select Shift and Seat!");
+    if(!sh || !st) {
+        alert("🚨 Pehle Shift aur Seat select karein!");
+        return;
+    }
+    
+    // Find Student
+    const s = db.find(x => x.shift === sh && x.seat.toString() === st.toString());
+    
+    if(!s) {
+        alert("❌ Record nahi mila!");
         return;
     }
 
-    const s = db.find(x => x.shift === sh && x.seat === st);
+    cur = s.id; // Current ID set ki
     
-    if (!s) {
-        alert("No student found!");
-        document.getElementById('fBox').style.display = 'none';
-        return;
-    }
-
-    cur = s.id; 
+    // UI Update
+    document.getElementById('fNameLabel').innerText = "Student: " + s.name;
+    const monthlyFee = parseFloat(s.rt || 0);
+    document.getElementById('lblFeeDisplay').innerText = monthlyFee;
+    document.getElementById('pA').value = monthlyFee;
     
-    // --- RESET DROPDOWNS TO "SELECT" FOR NEW STUDENT ---
-    document.getElementById('pM').value = ""; // Month reset
-    document.getElementById('pY').value = ""; // Year reset
-    
-    document.getElementById('fNameLabel').innerText = "Fee Entry for: " + s.name;
-    document.getElementById('lblFeeDisplay').innerText = s.rt || 0;
-    document.getElementById('pA').value = s.rt || 0;
-
-    const history = document.getElementById('lblLastPaid');
-    if (s.fee && Object.keys(s.fee).length > 0) {
-        const monthsPaid = Object.keys(s.fee);
-        const lastMonth = monthsPaid[monthsPaid.length - 1];
-        history.innerHTML = `<b style="color:green;">${lastMonth} (₹${s.fee[lastMonth]})</b>`;
-    } else {
-        history.innerText = "No payment history (New Student)";
-    }
-
+    // Box show karein
     document.getElementById('fBox').style.display = 'block';
+    
+    // Last history check
+    const hist = document.getElementById('historyLabel');
+    if(s.feeHistory && s.feeHistory.length > 0) {
+        let last = s.feeHistory[s.feeHistory.length - 1];
+        hist.innerHTML = `<i class="fa fa-clock-rotate-left"></i> Last: ${last.monthYear} (₹${last.amount})`;
+    } else { 
+        hist.innerText = 'New Admission'; 
+    }
 }
 
+function executeFeeSaving() {
+    let s = db.find(x => x.id === cur);
+    let m = document.getElementById('pM').value;
+    let y = document.getElementById('pY').value;
+    let inputAmt = parseFloat(document.getElementById('pA').value) || 0;
+    const monthKey = `${m}-${y}`;
+
+    // --- Limit Check Logic (Aapne pehle pucha tha) ---
+    const fixedMonthlyFee = parseFloat(s.rt || 0);
+    let alreadyPaid = 0;
+    if (s.feeHistory) {
+        alreadyPaid = s.feeHistory
+            .filter(tx => tx.monthYear === monthKey)
+            .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
+    }
+    const maxAllowed = fixedMonthlyFee - alreadyPaid;
+    if (inputAmt > maxAllowed) {
+        alert(`🚨 Limit Exceeded!\n\nMonthly Fee: ₹${fixedMonthlyFee}\nAlready Paid: ₹${alreadyPaid}\n Now you can pay only ₹${maxAllowed} can pay.`);
+        return;
+    }
+
+    const receiptID = "MS-" + Math.floor(100000 + Math.random() * 900000);
+    const today = new Date().toLocaleDateString('en-IN');
+
+    // 1. Student History Update
+    if (!s.feeHistory) s.feeHistory = [];
+    const newTx = {
+        monthYear: monthKey,
+        amount: inputAmt,
+        date: today,
+        receipt: receiptID
+    };
+    s.feeHistory.push(newTx);
+
+    // 2. Backward compatibility ke liye total sum update
+    if (!s.fee) s.fee = {};
+    s.fee[monthKey] = (parseFloat(s.fee[monthKey]) || 0) + inputAmt;
+
+    const uid = localStorage.getItem('uid');
+
+    // --- IMPORTANT: Dashboard "All Time Paid" ke liye Collections mein push karein ---
+    const collectionData = {
+        studentId: s.id,
+        studentName: s.name,
+        amount: inputAmt,
+        monthYear: monthKey,
+        date: today,
+        receipt: receiptID,
+        timestamp: Date.now() // Sorting ke liye
+    };
+
+    // Firebase par do jagah save hoga
+    rdb.ref(`library_data/Users/${uid}/collections`).push(collectionData); // Isse All Time Paid badhega
+    rdb.ref(`library_data/Users/${uid}/data/students`).set(db).then(() => {
+        
+        // Receipt trigger
+        try { generateReceipt(s, m, y, inputAmt, receiptID); } catch(e) {}
+
+        document.getElementById('successModal').style.display = 'flex'; 
+        resetFeeForm();
+        drawMain();
+        
+        // Dashboard Stats ko turant refresh karein
+        if(typeof loadAllLibraryData === "function") loadAllLibraryData();
+    });
+}
 
 
 
@@ -2459,6 +2540,10 @@ function qSave() {
         alert("🚨 Action Blocked: Please Select Month and Year first!");
         return; // Yeh zaroori hai
     }
+	const pinField = document.getElementById('customPinInput');
+    if (pinField) {
+        pinField.value = ""; // Purana PIN delete kar dega
+    }
 
     // PIN Modal open karein
     document.getElementById('pinModal').style.display = 'flex';
@@ -2477,6 +2562,7 @@ function verifyAndProcessFee() {
 
     // Same PIN Logic as Fee Submission
     if (enteredPin === savedPin || enteredPin === masterPin) {
+	   document.getElementById('customPinInput').value = "";
         closePinModal();
         
         // Action ke hisab se process aage badhayein
@@ -2493,61 +2579,6 @@ function verifyAndProcessFee() {
     }
 }
 
-
-function executeFeeSaving() {
-    let s = db.find(x => x.id === cur);
-    let m = document.getElementById('pM').value;
-    let y = document.getElementById('pY').value;
-    let amt = parseFloat(document.getElementById('pA').value) || 0;
-    const monthKey = `${m}-${y}`;
-    const receiptID = "MS-" + Math.floor(100000 + Math.random() * 900000);
-    const today = new Date().toLocaleDateString();
-
-    // --- MULTIPLE ENTRY FIX START ---
-    // Agar feeHistory nahi hai toh empty array banayein
-    if (!s.feeHistory || !Array.isArray(s.feeHistory)) {
-        s.feeHistory = [];
-    }
-
-    // Naya object banayein
-    const newTx = {
-        monthYear: monthKey,
-        amount: amt,
-        date: today,
-        receipt: receiptID
-    };
-
-    // Array mein push karein (Duplicate allow karega partial payment ke liye)
-    s.feeHistory.push(newTx);
-
-    // Backward compatibility (Total sum update karein)
-    if (!s.fee) s.fee = {};
-    s.fee[monthKey] = (parseFloat(s.fee[monthKey]) || 0) + amt;
-    // --- MULTIPLE ENTRY FIX END ---
-
-    const uid = localStorage.getItem('uid');
-    
-    // Collections (Individual Transactions) hamesha alag push honge
-    const permanentEntry = {
-        date: today,
-        studentName: s.name,
-        studentId: s.id,
-        monthYear: monthKey,
-        amount: amt,
-        fixedFee: parseFloat(s.rt || 0),
-        receipt: receiptID
-    };
-
-    // Cloud aur Local Sync
-    rdb.ref(`library_data/Users/${uid}/collections`).push(permanentEntry);
-    sync(); // Yeh db array ko Firebase par update karega
-    
-    generateReceipt(s, m, y, amt, receiptID);
-    
-    document.getElementById('successModal').style.display = 'flex'; 
-    document.getElementById('fBox').style.display = 'none';
-    if(typeof drawMain === "function") drawMain();
-}
 
 
 function changePin() {
@@ -2723,10 +2754,7 @@ window.onload = function() {
     // 4. SETTINGS LOAD (Global variables ke liye)
     loadSettings(); 
 
-    // 5. DASHBOARD STATS AUTO-UPDATE (2 seconds baad taaki data load ho jaye)
-    setTimeout(() => {
-        if(typeof drawPaidReport === "function") drawPaidReport();
-    }, 2000);
+   
 };
 
 
@@ -3040,6 +3068,26 @@ function downloadPaidPDF() {
     });
 
     doc.save(`Paid_Report_${m}_${y}.pdf`);
+}
+
+function resetFeeForm() {
+    // Dropdowns reset
+    if(document.getElementById('fShft')) document.getElementById('fShft').value = "";
+    if(document.getElementById('fSeat')) document.getElementById('fSeat').innerHTML = '<option value="">----</option>';
+    if(document.getElementById('pM')) document.getElementById('pM').value = "";
+    if(document.getElementById('pY')) document.getElementById('pY').value = "";
+    
+    // Input Reset
+    if(document.getElementById('pA')) document.getElementById('pA').value = "";
+    
+    // Labels & Box Reset
+    if(document.getElementById('fBox')) document.getElementById('fBox').style.display = 'none';
+    if(document.getElementById('fNameLabel')) document.getElementById('fNameLabel').innerText = "";
+    if(document.getElementById('lblFeeDisplay')) document.getElementById('lblFeeDisplay').innerText = "0";
+    if(document.getElementById('historyLabel')) document.getElementById('historyLabel').innerText = "";
+    
+    // Current Student Global Variable reset
+    cur = null; 
 }
 
 </script>
