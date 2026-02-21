@@ -1965,10 +1965,15 @@ function reAdmission(index) {
     let s = exStd[index];
     
     // Admission Modal mein purana data bharna
+    document.getElementById('eid').value = s.id;
     document.getElementById('n').value = s.name;
     document.getElementById('fn').value = s.father || '';
+	document.getElementById('mn').value = s.mother || '';
     document.getElementById('p').value = s.phone || '';
-    document.getElementById('rt').value = s.rt || 0;
+    document.getElementById('st').value = s.seat;
+	document.getElementById('en').value = s.emergency || '';
+    document.getElementById('sh').value = s.shift;
+    document.getElementById('rt').value = s.rt || s.Fee || 0;
     document.getElementById('ad').value = s.address || '';
     
     // Ex-Student list se abhi nahi hatayenge, saveStd() hone par purana record handle karein
@@ -2139,11 +2144,14 @@ const preview = document.getElementById('formPhotoPreview');
         uploadTxt.style.display = 'block';
     }
 
+	// Form mein purana data bharna
     document.getElementById('eid').value = s.id;
     document.getElementById('n').value = s.name;
     document.getElementById('fn').value = s.father || '';
+	document.getElementById('mn').value = s.mother || '';
     document.getElementById('p').value = s.phone || '';
     document.getElementById('st').value = s.seat;
+	document.getElementById('en').value = s.emergency || '';
     document.getElementById('sh').value = s.shift;
     document.getElementById('rt').value = s.rt || s.Fee || 0;
     document.getElementById('ad').value = s.address || '';
@@ -2360,8 +2368,6 @@ function executeFeeSaving() {
         if(typeof loadAllLibraryData === "function") loadAllLibraryData();
     });
 }
-
-
 
 function drawMain() {
     const tb = document.getElementById('mainTbody');
@@ -3092,4 +3098,5 @@ function resetFeeForm() {
 
 </script>
 </body>
+
 </html>
