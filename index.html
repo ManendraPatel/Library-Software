@@ -9,7 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
-    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -116,6 +116,54 @@
     border: 1px solid #dee2e6;
 	border-collapse: collapse;
 }
+
+/* Seat Number ka Badge */
+.badge-seat {
+    background: #f1c40f;
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+/* Button Group Container */
+.action-btn-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Premium Button Base Style */
+.premium-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: white !important;
+}
+
+.premium-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Colors */
+.btn-call { background: linear-gradient(135deg, #3498db, #2980b9); }
+.btn-pay { background: linear-gradient(135deg, #f39c12, #e67e22); }
+.btn-wa { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+
+/* Icons size fix */
+.premium-btn i { font-size: 14px; }
+
 
 .table-wrapper-report table { width: 100%; border-collapse: collapse; background: white; }
 .table-wrapper-report th { background: #455a64; color: white; padding: 8px; text-align: left; font-size: 12px; }
@@ -944,13 +992,14 @@
     <div class="table-wrapper-report">
         <table id="reportTable">
             <thead>
-                <tr>
-                    <th>Student Name</th>
-                    <th>Mobile</th>
-                    <th>Seat</th>
-                    <th>Monthly Fee</th>
-                    <th>Status (Pending)</th>
-                </tr>
+                <tr style="background:#c0392b; color:white;">
+                <th>Student Name</th>
+                <th>Phone</th>
+				<th>Seat No.</th>
+                <th>Monthly Fee</th>
+                <th>Pending</th>
+                <th>Action</th> 
+		</tr>
             </thead>
             <tbody id="penTbody"></tbody>
         </table>
@@ -1491,7 +1540,6 @@ function loadAllLibraryData() {
     loadSettings();
     initializeDropdowns();
 }
-
 function saveStd() {
     const id = document.getElementById('eid').value;
     const st = document.getElementById('st').value.trim(); 
@@ -1503,7 +1551,7 @@ function saveStd() {
         return;
     }
 
-    // --- SEAT VALIDATION LOGIC START ---
+    // --- SEAT VALIDATION (Baaki sab same rahega) ---
     const conflict = db.find(s => {
         if (id && s.id == id) return false;
         if (s.seat == st) {
@@ -1518,11 +1566,30 @@ function saveStd() {
         alert(`🚨 Seat Conflict! Seat No. ${st} is already occupied by ${conflict.name}.`);
         return;
     }
-    // --- SEAT VALIDATION LOGIC END ---
 
+    // --- DATA PREPARATION: PURANA DATA FETCH KAREIN ---
     const photoData = document.getElementById('formPhotoPreview').src;
+    let oldFeeHistory = [];
+    let oldFeeObject = {};
+
+    // Check karein agar ye Re-admission hai
+    if (window.pendingReAdmissionId) {
+        const sourceStudent = exStd.find(s => s.id === window.pendingReAdmissionId);
+        if (sourceStudent) {
+            oldFeeHistory = sourceStudent.feeHistory || [];
+            oldFeeObject = sourceStudent.fee || {};
+        }
+    } else if (id) {
+        // Agar normal edit mode hai
+        const sourceStudent = db.find(x => x.id == id);
+        if (sourceStudent) {
+            oldFeeHistory = sourceStudent.feeHistory || [];
+            oldFeeObject = sourceStudent.fee || {};
+        }
+    }
+
     const sData = {
-        id: id ? parseInt(id) : Date.now(),
+        id: id ? parseInt(id) : (window.pendingReAdmissionId || Date.now()), // Purani ID preserve karein
         name: name,
         father: document.getElementById('fn').value || '',
         mother: document.getElementById('mn').value || '',
@@ -1534,25 +1601,29 @@ function saveStd() {
         address: document.getElementById('ad').value || '',
         photo: photoData.startsWith('data:image') ? photoData : '',
         date: new Date().toLocaleDateString('en-IN'),
-        feeHistory: [], 
-        fee: {}
+        // --- FIX: Purana data yahan bacha rahega ---
+        feeHistory: oldFeeHistory, 
+        fee: oldFeeObject
     };
 
+    // --- SAVE & SYNC ---
     if(id) {
         const idx = db.findIndex(x => x.id == id);
         db[idx] = sData;
     } else {
         db.push(sData);
-        // FIX: Agar Re-admission mode tha, toh Ex-list se student hatayein
         if (window.pendingReAdmissionId) {
             exStd = exStd.filter(student => student.id !== window.pendingReAdmissionId);
-            window.pendingReAdmissionId = null;
+            window.pendingReAdmissionId = null; 
         }
     }
 
     sync(); 
     opMod('addModal', false);
     clrF();
+    
+    if(document.getElementById('customPinInput')) document.getElementById('customPinInput').value = "";
+
     alert("✅ Admission Successful!");
     drawMain();
     if(typeof drawExStudents === "function") drawExStudents();
@@ -1623,70 +1694,111 @@ function markAsExStudent() {
 function drawPendingReport() {
     const m = document.getElementById('penMonth').value;
     const y = document.getElementById('penYear').value;
-    const tb = document.getElementById('penTbody');
-
     if (!m || !y) {
-        alert("🚨 Please select Month and Year!");
+        alert("Please select Month and Year!");
         return;
     }
 
-    const key = `${m}-${y}`;
+    const libName = document.getElementById('setLibName')?.value || "Our Library";
+    const libAddr = document.getElementById('setLibAddress')?.value || "";
+    const libMob = document.getElementById('setLibContact')?.value || "";
+
+    const targetKey = `${m}-${y}`;
+    const tb = document.getElementById('penTbody');
     tb.innerHTML = '';
+
     let totalPendingAll = 0, totalCollAll = 0, count = 0;
 
     db.forEach(s => {
         const fixedMonthlyFee = parseFloat(s.rt || 0);
         
-        // --- Calculation Fix: Us mahine ki saari partial payments ka total ---
         let totalPaidInThisMonth = 0;
-        if (s.feeHistory && Array.isArray(s.feeHistory)) {
+        if (s.feeHistory) {
             totalPaidInThisMonth = s.feeHistory
-                .filter(tx => tx.monthYear === key)
+                .filter(tx => tx.monthYear === targetKey)
                 .reduce((sum, tx) => sum + parseFloat(tx.amount || 0), 0);
-        } else if (s.fee && s.fee[key]) {
-            totalPaidInThisMonth = parseFloat(s.fee[key]); // Purana data support
         }
 
         const remainingAmt = fixedMonthlyFee - totalPaidInThisMonth;
 
-        // Agar ₹1 bhi pending hai toh list mein dikhayein
+        // Sirf wahi dikhayein jinka balance baki hai
         if (remainingAmt > 0) {
-            totalPendingAll += remainingAmt;
-            totalCollAll += totalPaidInThisMonth;
             count++;
+            totalPendingAll += remainingAmt;
+            totalCollAll += totalPaidInThisMonth; // Is month ka collection bhi add karein
+
+            // Message Format
+            const msg = `Dear *${s.name}*, 👋\n\n` +
+                        `Friendly reminder regarding library fee for *${m}-${y}*. 📚\n\n` +
+                        `📌 *Fee Details:*\n` +
+                        `- Monthly Fee: ₹${fixedMonthlyFee}\n` +
+                        `- Amount Paid: ₹${totalPaidInThisMonth}\n` +
+                        `- *Pending: ₹${remainingAmt}* 💳\n\n` +
+                        `Kindly clear your dues. ⏳\n\n` +
+                        `✨ ${libName} \n` +
+                        `📍 ${libAddr}\n` +
+                        `📞 ${libMob}`;
+			const encodedMsg = encodeURIComponent(msg);
+            const waUrl = `https://api.whatsapp.com/send?phone=91${s.phone}&text=${encodedMsg}`;
 
             tb.innerHTML += `
                 <tr class="report-row">
                     <td><b>${s.name}</b></td>
-					<td>${s.phone}</td>
-                    <td>${s.seat}</td>
+                    <td>${s.phone}</td>
+                    <td><span class="badge-seat">${s.seat}</span></td>
                     <td>₹${fixedMonthlyFee}</td>
-                    <td style="color:#27ae60;">Paid: ₹${totalPaidInThisMonth} <b style="color:#e74c3c;"> Pending: ₹${remainingAmt} </b></td>
-                    
+                    <td>
+                        <div style="line-height:1.4;">
+                            <span class="paid-val" style="color:#27ae60; font-weight:bold; font-size:12px;">Paid: ₹${totalPaidInThisMonth}</span><br>
+                            <span class="pending-val" style="color:#e74c3c; font-weight:bold; font-size:13px;">Due: ₹${remainingAmt}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="action-btn-group">
+                            <a href="tel:${s.phone}" class="premium-btn btn-call"><i class="fa fa-phone"></i></a>
+							<a href="${waUrl}" target="_blank" class="premium-btn btn-wa"><i class="fab fa-whatsapp"></i> Notify</a>
+                            <button onclick="quickPay('${s.shift}', '${s.seat}')" class="premium-btn btn-pay"><i class="fa fa-credit-card"></i> Pay</button>
+                            
+                        </div>
+                    </td>
                 </tr>`;
         }
     });
 
-    document.getElementById('valLeft').innerText = '₹' + totalPendingAll.toLocaleString();
-    document.getElementById('valRight').innerText = '₹' + totalCollAll.toLocaleString();
-    document.getElementById('penCount').innerText = count;
+    // Dashboard Stats Update
+    if(document.getElementById('valLeft')) document.getElementById('valLeft').innerText = '₹' + totalPendingAll.toLocaleString();
+    if(document.getElementById('valRight')) document.getElementById('valRight').innerText = '₹' + totalCollAll.toLocaleString();
+    if(document.getElementById('penCount')) document.getElementById('penCount').innerText = count;
 }
+
+// Quick Pay Logic to jump to Fee Section
+function quickPay(shift, seat) {
+    openS('fee'); // Fee section open karein
+    document.getElementById('fShft').value = shift;
+    loadStudentsByShift(); // Seats load karein
+    setTimeout(() => {
+        document.getElementById('fSeat').value = seat;
+        getStdForFee(); // Student data load karein
+    }, 200);
+}
+
 
 function drawPaidReport() {
     const uid = localStorage.getItem('uid');
     const m = document.getElementById('paidMonth').value;
     const y = document.getElementById('paidYear').value;
     
-    if (!m || !y) return; // Refresh par alert nahi aayega
+    if (!m || !y) return;
 
     const targetKey = `${m}-${y}`;
     const tb = document.getElementById('paidTbody');
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;">Filtering Full Paid Students...</td></tr>';
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;">Filtering Full Paid Records...</td></tr>';
 
     rdb.ref(`library_data/Users/${uid}/collections`).once('value').then((snap) => {
         const collections = snap.val();
         tb.innerHTML = '';
         let monthTotal = 0;
+        let studentCount = 0;
         let groupedData = {}; 
 
         if (collections) {
@@ -1695,16 +1807,18 @@ function drawPaidReport() {
                     const sId = tx.studentId || tx.studentName;
                     
                     if (!groupedData[sId]) {
-                        // Student ki fixed monthly fee dhoondhna
-                        let studentObj = db.find(std => std.id == tx.studentId) || { rt: 0 };
+                        // DB (Active) aur Ex-Student dono mein check karein
+                        let studentObj = db.find(std => std.id == tx.studentId) || 
+                                       exStd.find(std => std.id == tx.studentId);
                         
                         groupedData[sId] = {
                             date: tx.date,
                             name: tx.studentName,
                             month: tx.monthYear,
-                            monthlyFee: parseFloat(studentObj.rt || 0), // Monthly Fee column ke liye
+                            monthlyFee: studentObj ? parseFloat(studentObj.rt || 0) : 0,
                             totalAmt: 0,
-                            receipts: []
+                            receipts: [],
+                            isDeleted: !studentObj // Agar student dono list mein nahi hai
                         };
                     }
                     groupedData[sId].totalAmt += parseFloat(tx.amount || 0);
@@ -1713,29 +1827,35 @@ function drawPaidReport() {
             });
         }
 
-        let studentCount = 0;
         Object.values(groupedData).forEach(data => {
-            // --- NEW LOGIC: Sirf tab dikhayein jab Paid Amount >= Monthly Fee ho ---
-            if (data.totalAmt >= data.monthlyFee && data.monthlyFee > 0) {
+            // LOGIC: Sirf Full Paid dikhayein 
+            // 1. Agar student active hai toh Total >= Monthly Fee honi chahiye
+            // 2. Agar student delete ho chuka hai (isDeleted), toh hum use dikhayenge kyunki uska hisab khatam ho gaya
+            if (data.isDeleted || data.totalAmt >= data.monthlyFee) {
                 studentCount++;
                 monthTotal += data.totalAmt;
 
                 tb.innerHTML += `
                     <tr>
                         <td>${data.date}</td>
-                        <td><b>${data.name}</b></td>
+                        <td>
+                            <b>${data.name}</b> 
+                            ${data.isDeleted ? '<small style="color:gray;">(Removed)</small>' : ''}
+                        </td>
                         <td>${data.month}</td>
-                        <td style="color:#2c3e50; font-weight:bold;">₹${data.monthlyFee}</td> <td style="font-size:11px; color:#555;">${data.receipts.join(', ')}</td>
+						<td style="color:#2c3e50; font-weight:bold;">₹${data.monthlyFee}</td> 
+						<td style="font-size:11px; color:#555;">${data.receipts.join(', ')}</td>
+                        
                         <td style="color:#27ae60; font-weight:bold;">₹${data.totalAmt}</td>
                     </tr>`;
             }
         });
-
+ 
         document.getElementById('monthlyPaidTotal').innerText = '₹' + monthTotal.toLocaleString();
         document.getElementById('paidTxCount').innerText = studentCount;
 
         if (studentCount === 0) {
-            tb.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#888;">No full-paid records found for this month.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#888;">No full-paid records found.</td></tr>';
         }
     });
 }
@@ -1950,12 +2070,15 @@ function reAdmission(index) {
     if(!s) return;
     
     // Form mein data bharna
-    document.getElementById('eid').value = ""; // ID khali taaki naya admission ho
+    document.getElementById('eid').value = s.id;
     document.getElementById('n').value = s.name;
     document.getElementById('fn').value = s.father || '';
-    document.getElementById('mn').value = s.mother || '';
+	document.getElementById('mn').value = s.mother || '';
     document.getElementById('p').value = s.phone || '';
-    document.getElementById('rt').value = s.rt || 0;
+    document.getElementById('st').value = s.seat;
+	document.getElementById('en').value = s.emergency || '';
+    document.getElementById('sh').value = s.shift;
+    document.getElementById('rt').value = s.rt || s.Fee || 0;
     document.getElementById('ad').value = s.address || '';
     
     // Student photo preview handle karein
@@ -2919,12 +3042,10 @@ function downloadPendingPDF() {
     const libMob = document.getElementById('setLibContact').value || "Contact No";
     const logoImgSrc = document.getElementById('logoShow').src;
 
-    // --- LOGO ADD ---
     if (logoImgSrc && logoImgSrc.startsWith('data:image')) {
         doc.addImage(logoImgSrc, 'PNG', 15, 10, 22, 22);
     }
 
-    // Header Details
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.setTextColor(30, 60, 114);
@@ -2939,28 +3060,44 @@ function downloadPendingPDF() {
     doc.line(15, 38, 195, 38);
 
     const rows = [];
-    let totalPendingAmount = 0;
+    let totalPending = 0;
+    let totalCollected = 0;
+
     document.querySelectorAll("#penTbody tr").forEach(tr => {
-        const rowData = [];
         const tds = tr.querySelectorAll("td");
         if(tds.length >= 5) {
-            // Pending amount nikalne ke liye text se number nikalna
-            const amtText = tds[4].innerText.split('Pending: ₹')[1] || "0";
-            totalPendingAmount += parseFloat(amtText.replace(/,/g, '')) || 0;
+            // Text se numbers extract karna
+            const paidText = tds[4].querySelector('.paid-val').innerText.replace(/[₹,Paid:\s]/g, "");
+            const pendingText = tds[4].querySelector('.pending-val').innerText.replace(/[₹,Due:\s]/g, "");
             
-            tds.forEach(td => rowData.push(td.innerText.replace(/₹/g, "Rs. ")));
-            rows.push(rowData);
+            totalCollected += parseFloat(paidText) || 0;
+            totalPending += parseFloat(pendingText) || 0;
+
+            rows.push([
+                tds[0].innerText, 
+                tds[1].innerText, 
+                tds[2].innerText, 
+                tds[3].innerText, 
+                `Paid: Rs. ${paidText}\nDue: Rs. ${pendingText}`
+            ]);
         }
     });
 
     doc.autoTable({
-        head: [['Student Name', 'Mobile', 'Seat', 'Monthly Fee', 'Status (Pending)']],
+        head: [['Student Name', 'Mobile', 'Seat', 'Monthly Fee', 'Status (Monthly)']],
         body: rows,
         startY: 42,
         theme: 'grid',
         headStyles: { fillColor: [44, 62, 80] },
-        // --- BOTTOM TOTAL COUNT ---
-        foot: [['TOTAL', '', '', '', `Rs. ${totalPendingAmount}`]],
+        styles: { fontSize: 8 },
+        // PDF ke niche total summary dikhane ke liye
+        foot: [[
+            'TOTAL SUMMARY', 
+            '', 
+            '', 
+            `Collected: Rs. ${totalCollected}`, 
+            `Pending: Rs. ${totalPending}`
+        ]],
         footStyles: { fillColor: [231, 76, 60], fontStyle: 'bold' }
     });
 
@@ -3069,7 +3206,7 @@ function downloadPaidPDF() {
         headStyles: { fillColor: [46, 204, 113], fontSize: 9 },
         styles: { fontSize: 8, cellPadding: 3 },
         // --- BOTTOM TOTAL COUNT ---
-        foot: [['TOTAL PAID', '', '', '', `Students: ${rows.length}`, `Rs. ${totalCollection}`]],
+        foot: [[`Students: ${rows.length}`,'', '', '',  `TOTAL PAID:Rs. ${totalCollection}`]],
         footStyles: { fillColor: [46, 204, 113], fontStyle: 'bold', fontSize: 9 }
     });
 
