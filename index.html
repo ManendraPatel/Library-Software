@@ -2971,18 +2971,23 @@ function genPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    const s = db.find(x => x.id === cur);
-    if (!s) return alert("Student record nahi mila!");
+    // Check karein student Active list mein hai ya Ex-list mein
+    let s = db.find(x => x.id === cur) || exStd.find(x => x.id === cur);
+    
+    if (!s) {
+        alert("Student record nahi mila! Kripya pehle Ledger open karein.");
+        return;
+    }
 
-    // Settings se fresh data uthana
-    const libName = document.getElementById('setLibName').value || "DIGITAL LIBRARY";
-    const libAddr = document.getElementById('setLibAddress').value || "Library Address";
-    const libMob = document.getElementById('setLibContact').value || "Contact No";
+    // Settings se details uthana
+    const libName = document.getElementById('setLibName')?.value || "DIGITAL LIBRARY";
+    const libAddr = document.getElementById('setLibAddress')?.value || "Library Address";
+    const libMob = document.getElementById('setLibContact')?.value || "Contact No";
     const logoImg = document.getElementById('logoShow').src;
 
     // Header Setup
     if (logoImg && logoImg.startsWith('data:image')) {
-        doc.addImage(logoImg, 'PNG', 15, 10, 25, 25);
+        try { doc.addImage(logoImg, 'PNG', 15, 10, 25, 25); } catch(e){}
     }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
@@ -3009,12 +3014,26 @@ function genPDF() {
 
     const tableRows = [];
     let totalPaid = 0;
-    if (s.fee) {
+
+    // Logic: Pehle feeHistory array check karein, phir backup ke liye old fee object
+    if (s.feeHistory && s.feeHistory.length > 0) {
+        s.feeHistory.forEach(tx => {
+            const amt = parseFloat(tx.amount || 0);
+            totalPaid += amt;
+            tableRows.push([tx.monthYear, tx.date || '-', tx.receipt || 'N/A', `Rs. ${amt}`]);
+        });
+    } else if (s.fee) {
+        // Old Legacy Data support
         Object.keys(s.fee).forEach(key => {
             const amt = parseFloat(s.fee[key] || 0);
             totalPaid += amt;
-            tableRows.push([key, s.fDates[key] || '-', s.fReceipts[key] || 'N/A', `Rs. ${amt}`]);
+            tableRows.push([key, '-', 'Legacy Record', `Rs. ${amt}`]);
         });
+    }
+
+    if (tableRows.length === 0) {
+        alert("Is student ka koi payment record nahi mila.");
+        return;
     }
 
     doc.autoTable({
@@ -3023,13 +3042,12 @@ function genPDF() {
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [44, 62, 80] },
-        foot: [['', '', 'TOTAL PAID:', `Rs. ${totalPaid}`]],
+        foot: [['', '', 'TOTAL PAID:', `Rs. ${totalPaid.toLocaleString()}`]],
         footStyles: { fillColor: [231, 76, 60], fontStyle: 'bold' }
     });
 
     doc.save(`Statement_${s.name}.pdf`);
 }
-
 
 function downloadPendingPDF() {
     const { jsPDF } = window.jspdf;
@@ -3236,5 +3254,6 @@ function resetFeeForm() {
 
 </script>
 </body>
+
 
 </html>
