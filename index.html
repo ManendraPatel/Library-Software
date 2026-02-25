@@ -541,7 +541,7 @@ body {
     margin: 10px auto; 
     padding: 3px; 
     flex-grow: 1; /* Jagah fill karega */
-    display: flex; 
+    display: none; 
     flex-direction: column;
     overflow: hidden;
 }
@@ -588,10 +588,27 @@ body {
         .modal-content { background: white; width: 700px; margin: 4vh auto; padding: 8px; border-radius: 20px; max-height: 88vh; overflow-y: auto; position: relative; }
         .close-x { position: absolute; right: 20px; top: 15px; font-size: 28px; cursor: pointer; }
         footer { background: #1a252f; color: #ffffff; padding: 10px 50px; border-top: 4px solid #f1c40f; margin-top: auto; display: flex; justify-content: space-between; align-items: center; }
-        
+        /* Student list ke niche space add karne ke liye */
+#studentListContainer {
+    padding-bottom: 80px !important; /* Footer ki height ke hisab se space */
+    margin-bottom: 20px;
+}
+
+/* Agar poora body scroll ho raha hai toh body par bhi padding de sakte hain */
+body {
+    padding-bottom: 50px; 
+}
+		
+		
+		
+		.footer-class-name { /* Apne footer ki class ka naam yahan likhein */
+    position: relative; 
+    margin-top: 90px;
+    clear: both;
+}
         /* Premium Loader Styling */
 #loader { 
-    display:none; 
+    display:flex;
     position:fixed; 
     top:0; left:0; 
     width:100%; height:100%; 
@@ -621,7 +638,7 @@ body {
     width: 100%; height: 100%; 
     /* Deep Black Gradient */
     background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%); 
-    display: flex; 
+    display: none; 
     justify-content: center; 
     align-items: center; 
     z-index: 10000; 
@@ -834,7 +851,7 @@ body {
     </div>
 </div>
 
-<div class="container">
+<div class="container" id="main-container" style="display:none;">
 <header style="position: relative;">
     <label for="logoIn" class="logo-holder">
         <img id="logoShow" src="https://via.placeholder.com/60?text=LOGO">
@@ -1538,47 +1555,65 @@ function handleLogin() {
 
 function loadAllLibraryData() {
     const uid = localStorage.getItem('uid');
-    if(!uid) {
-        document.getElementById('loader').style.display = 'none';
-        return;
-    }
-    
-    document.getElementById('loader').style.display = 'flex';
-    
-    // 1. Live Listener for Student/Expense Data
-    rdb.ref(`library_data/Users/${uid}/data`).on('value', (snap) => {
-        const data = snap.val() || {};
+    const loader = document.getElementById('loader');
+    const mainContainer = document.getElementById('main-container');
+
+    if(!uid) return;
+
+    // --- STEP 1: INSTANT LOAD FROM CACHE ---
+    // Browser memory se check karo agar pehle ka data pada hai
+    const cachedData = localStorage.getItem(`cache_data_${uid}`);
+    if (cachedData) {
+        const data = JSON.parse(cachedData);
         db = data.students || [];
         ex = data.expenses || [];
         tr = data.trash || [];
         exStd = data.exStudents || [];
         
-        drawMain();
-        drawEx();
-        if(typeof drawExStudents === "function") drawExStudents();
-        document.getElementById('loader').style.display = 'none';
+        drawMain(); // Table turant bhar jayegi
+        loader.style.display = 'none'; // Loader turant hat jayega
+        mainContainer.style.display = 'flex'; // Dashboard turant dikhega
+    }
+
+    // --- STEP 2: BACKGROUND SYNC WITH FIREBASE ---
+    // Firebase se naya data fetch karo (Ye background mein hota rahega)
+    rdb.ref(`library_data/Users/${uid}/data`).on('value', (snap) => {
+        const data = snap.val() || {};
+        
+        // Memory (Cache) ko naye data se update karo
+        localStorage.setItem(`cache_data_${uid}`, JSON.stringify(data));
+
+        // Variables ko naye data se bharo
+        db = data.students || [];
+        ex = data.expenses || [];
+        tr = data.trash || [];
+        exStd = data.exStudents || [];
+        
+        drawMain(); // Agar DB mein koi badlav hua hai toh screen apne aap update ho jayegi
+        
+        // Loader hide aur Container show (Security backup agar cache khali ho)
+        loader.style.display = 'none';
+        mainContainer.style.display = 'flex';
     });
 
-    // --- FIX: Dashboard All Time Paid ko hamesha up-to-date rakhne ke liye ---
+    // Dashboard Stats (All Time Paid) Load
     rdb.ref(`library_data/Users/${uid}/collections`).on('value', (snap) => {
         const collections = snap.val();
-        let allTimeTotal = 0;
+        let total = 0;
         if (collections) {
             Object.values(collections).forEach(tx => {
-                allTimeTotal += parseFloat(tx.amount || 0);
+                total += parseFloat(tx.amount || 0);
             });
         }
-        // Dashboard par value update karein
-        const dashboardStat = document.getElementById('allTimeStat');
-        if(dashboardStat) {
-            dashboardStat.innerText = '₹' + allTimeTotal.toLocaleString();
-        }
+        const statEl = document.getElementById('allTimeStat');
+        if(statEl) statEl.innerText = '₹' + total.toLocaleString();
     });
-
 
     loadSettings();
     initializeDropdowns();
 }
+
+
 function saveStd() {
     const id = document.getElementById('eid').value;
     const st = document.getElementById('st').value.trim(); 
@@ -2875,44 +2910,44 @@ function initializeDropdowns() {
 }
 
 window.onload = function() {
-    // 1. LOGIN SCREEN SYNC (Memory se data lakar turant dikhayein)
+    // 1. Elements ko pakadna
+    const loader = document.getElementById('loader');
+    const loginScreen = document.getElementById('login-screen');
+    const mainContainer = document.querySelector('.container'); // Aapka main dashboard container
+
+    // 2. Memory se login info check karna
+    const isLoggedIn = localStorage.getItem('isLoggedIn');
+    const savedUID = localStorage.getItem('uid');
+    
+    // 3. Login Screen Cache (Taaki login page par aapka logo aur naam dikhe)
     const savedName = localStorage.getItem('cachedLibName');
     const savedLogo = localStorage.getItem('cachedLibLogo');
 
     if(savedName && document.getElementById('loginLibName')) {
         document.getElementById('loginLibName').innerText = savedName;
     }
-    
-    if(savedLogo) {
-        if(document.getElementById('brandLoginLogo')) document.getElementById('brandLoginLogo').src = savedLogo;
-        if(document.getElementById('brandLoaderLogo')) document.getElementById('brandLoaderLogo').src = savedLogo;
-        // Dashboard header logo bhi update karein agar already logged in ho
-        if(document.getElementById('logoShow')) document.getElementById('logoShow').src = savedLogo;
-    } else {
-        // Default logo agar memory khali ho
-        const companyLogo = "https://lh3.googleusercontent.com/p/AF1QipNa-hW8Df5eMcblrnc40uO-Wp1TLdupZlse_Gmk=s1360-w1360-h1020-rw"; 
-        if(document.getElementById('brandLoaderLogo')) document.getElementById('brandLoaderLogo').src = companyLogo;
-        if(document.getElementById('brandLoginLogo')) document.getElementById('brandLoginLogo').src = companyLogo;
+    if(savedLogo && document.getElementById('brandLoginLogo')) {
+        document.getElementById('brandLoginLogo').src = savedLogo;
     }
 
-    // 2. DROPDOWNS INITIALIZE
-    initializeDropdowns();
-
-    // 3. LOGIN STATUS CHECK
-    const isLoggedIn = localStorage.getItem('isLoggedIn');
-    const savedUID = localStorage.getItem('uid');
-
+    // 4. MAIN LOGIC: Refresh par kya hoga?
     if (isLoggedIn === 'true' && savedUID) {
-        document.getElementById('login-screen').style.display = 'none';
-        loadAllLibraryData(); // Database se fresh data ladein
+        // AGAR LOGIN HAI:
+        loader.style.display = 'flex';       // Loader dikhao
+        loginScreen.style.display = 'none';  // Login page chhupao
+        mainContainer.style.display = 'flex'; // Dashboard abhi chhupaye rakhein jab tak data na aa jaye
+        
+        loadAllLibraryData(); // Data fetch shuru karein
     } else {
-        document.getElementById('login-screen').style.display = 'flex';
+        // AGAR LOGIN NAHI HAI:
+        loader.style.display = 'none';       // Loader hatao
+        loginScreen.style.display = 'flex';  // Login page dikhao
+        mainContainer.style.display = 'flex';
     }
-    
-    // 4. SETTINGS LOAD (Global variables ke liye)
-    loadSettings(); 
 
-   
+    // 5. Baaki dropdowns ko initialize karna
+    initializeDropdowns();
+    loadSettings(); 
 };
 
 
