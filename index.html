@@ -2,7 +2,7 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <title>Library Management-A MS Technology Ver 1.0.0</title>
+    <title>Library Management-A MS Technology</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 	<link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1RN9WAiLZ4MsZLzx9fKXgOCeaGWZvvjyj">
@@ -23,15 +23,20 @@
     border: 1px solid rgba(241, 196, 15, 0.2);
 }
 
-/* 3. Student List Container ko sahi height aur scroll dein */
 #studentListContainer {
-    flex-grow: 1; /* Ye table ko bachi hui screen par faila dega */
-    height: 350px; /* Backup height agar flex kaam na kare */
-    max-height: calc(100vh - 300px); /* Screen ke hisab se automatic height */
-    overflow-y: auto; /* Sirf yahan scroll bar aayega */
+    flex-grow: 1;
+    height: 400px; /* Isse fix height milegi */
+    max-height: 60vh; /* Screen ke hisab se scroll bar lane ke liye */
+    overflow-y: auto !important; /* Scrollbar wapas lane ke liye */
     border: 1px solid #ddd;
     border-radius: 8px;
     background: #fff;
+    margin-bottom: 80px; /* Footer se dur rakhne ke liye */
+}
+
+/* Jab table empty ho (baaki pages par), toh container space na le */
+#studentListContainer:empty {
+    display: none;
 }
 
 .myTable thead th {
@@ -523,27 +528,27 @@
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
         .shake-effect { animation: shake 0.3s ease-in-out; border: 2px solid #e74c3c !important; background-color: #fceae9 !important; }
         :root { --grad-blue: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); --primary: #2c3e50; --secondary: #27ae60; --danger: #e74c3c; --accent: #2980b9; --gold: #f1c40f; }
- /* 1. Body ko fix karein taaki poora page scroll na ho */
-body { 
+ body { 
     font-family: 'Poppins', sans-serif; 
     background: #eef2f3; 
     margin: 0; 
-    height: 100vh; /* Fixed height */
+    /* height: 100vh; ko delete kar dein */
+    min-height: 100vh; /* Taaki background poora dikhe */
     display: flex; 
     flex-direction: column; 
-    overflow: hidden; /* Poore page ka scroll band */
+    overflow-y: hidden;
 }
 
-/* 2. Container ko flex-grow dein taaki wo bachi hui jagah le le */
+/* Purane code mein flex-grow: 1 ko hata kar 0 kar dein */
 .container { 
-    width: 98% !important;
-    max-width: 1600px;
+    width: 98% !important; 
+    max-width: 1600px; 
     margin: 10px auto; 
     padding: 3px; 
-    flex-grow: 1; /* Jagah fill karega */
-    display: none; 
-    flex-direction: column;
-    overflow: hidden;
+    flex-grow: 0; /* Isse content stretch nahi hoga */
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
 }
 
 /* Table wrapper ko window ke andar rakhne ke liye */
@@ -588,16 +593,7 @@ body {
         .modal-content { background: white; width: 700px; margin: 4vh auto; padding: 8px; border-radius: 20px; max-height: 88vh; overflow-y: auto; position: relative; }
         .close-x { position: absolute; right: 20px; top: 15px; font-size: 28px; cursor: pointer; }
         footer { background: #1a252f; color: #ffffff; padding: 10px 50px; border-top: 4px solid #f1c40f; margin-top: auto; display: flex; justify-content: space-between; align-items: center; }
-        /* Student list ke niche space add karne ke liye */
-#studentListContainer {
-    padding-bottom: 80px !important; /* Footer ki height ke hisab se space */
-    margin-bottom: 20px;
-}
-
-/* Agar poora body scroll ho raha hai toh body par bhi padding de sakte hain */
-body {
-    padding-bottom: 50px; 
-}
+        
 		
 		
 		
@@ -2275,9 +2271,26 @@ function handleLogout() {
     if(logMod) {
         logMod.style.display = 'flex';
     } else {
-        // Fallback agar modal na mile
         if(confirm("Are you sure want to logout?")) executeLogout();
     }
+}
+
+// 2. Final Logout execution (Bina reload ke instant switch)
+function executeLogout() {
+    // Local Storage saaf karein
+    localStorage.removeItem('uid');
+    localStorage.removeItem('isLoggedIn');
+    
+    // UI ko turant reset karein
+    document.getElementById('logoutModal').style.display = 'none';
+    document.getElementById('main-container').style.display = 'none'; // Dashboard chhupao
+    document.getElementById('login-screen').style.display = 'flex';   // Login screen dikhao
+    document.getElementById('loader').style.display = 'none';         // Loader band rakho
+    
+    // Form data aur message clear karein
+    document.getElementById('userIn').value = "";
+    document.getElementById('passIn').value = "";
+    document.getElementById('loginMsg').innerText = "Logged out successfully.";
 }
 
 // 2. Modal band karne ka function
@@ -2285,19 +2298,6 @@ function closeLogoutModal() {
     document.getElementById('logoutModal').style.display = 'none';
 }
 
-// 3. Final Logout execution logic
-function executeLogout() {
-    // Sirf login related data remove karein
-    localStorage.removeItem('uid');
-    localStorage.removeItem('isLoggedIn');
-    
-    // UI reset karein aur login screen dikhayein
-    document.getElementById('logoutModal').style.display = 'none';
-    document.getElementById('login-screen').style.display = 'flex';
-    
-    // Page reload karein taaki saari memory clear ho jaye
-    location.reload(); 
-}
 
 // Form Clear Function
 function clrF() {
