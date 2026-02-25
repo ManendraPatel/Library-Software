@@ -23,6 +23,34 @@
     border: 1px solid rgba(241, 196, 15, 0.2);
 }
 
+/* 3. Student List Container ko sahi height aur scroll dein */
+#studentListContainer {
+    flex-grow: 1; /* Ye table ko bachi hui screen par faila dega */
+    height: 350px; /* Backup height agar flex kaam na kare */
+    max-height: calc(100vh - 300px); /* Screen ke hisab se automatic height */
+    overflow-y: auto; /* Sirf yahan scroll bar aayega */
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.myTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #34495e !important;
+    color: white;
+}
+/* Header ko scroll karte waqt upar chipkane ke liye */
+.myTable th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #34495e;
+}
+
+
+
 /* Hover Effect: Jab cursor button par jaye */
 .stats-bar .stat-item:hover, .nav-cards .card:hover {
     transform: translateY(-8px) scale(1.02); /* Thoda upar uthega aur bada hoga */
@@ -495,18 +523,27 @@
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
         .shake-effect { animation: shake 0.3s ease-in-out; border: 2px solid #e74c3c !important; background-color: #fceae9 !important; }
         :root { --grad-blue: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); --primary: #2c3e50; --secondary: #27ae60; --danger: #e74c3c; --accent: #2980b9; --gold: #f1c40f; }
-        body { font-family: 'Poppins', sans-serif; background: #eef2f3; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        
-		.container { 
+ /* 1. Body ko fix karein taaki poora page scroll na ho */
+body { 
+    font-family: 'Poppins', sans-serif; 
+    background: #eef2f3; 
+    margin: 0; 
+    height: 100vh; /* Fixed height */
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; /* Poore page ka scroll band */
+}
+
+/* 2. Container ko flex-grow dein taaki wo bachi hui jagah le le */
+.container { 
     width: 98% !important;
     max-width: 1600px;
-    margin: 15px auto; 
+    margin: 10px auto; 
     padding: 3px; 
-    height: auto; /* vh hata kar auto karein */
+    flex-grow: 1; /* Jagah fill karega */
     display: flex; 
-	box-sizing: border-box;
-	
-    flex-direction: column; 
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* Table wrapper ko window ke andar rakhne ke liye */
@@ -857,8 +894,8 @@
                 <input type="text" id="srch" placeholder="Search..." onkeyup="drawMain()" style="padding:10px; border:1px solid #ddd; border-radius:8px; width:280px;">
             </div>
         </div>
-        <div class="table-wrapper">
-    <table style="width: 100%; border-collapse: collapse;">
+        <div id="studentListContainer">
+    <table class="myTable">
         <thead>
             <tr style="background: #34495e; color: white;">
                 <th style="padding: 12px; text-align: left; width: 20%;">Name</th>
@@ -869,7 +906,8 @@
                 <th style="padding: 12px; text-align: center; width: 20%;">Action</th>
             </tr>
         </thead>
-        <tbody id="mainTbody"></tbody>
+        <tbody id="mainTbody">
+            </tbody>
     </table>
 </div>
     </div>
@@ -1536,6 +1574,7 @@ function loadAllLibraryData() {
             dashboardStat.innerText = '₹' + allTimeTotal.toLocaleString();
         }
     });
+
 
     loadSettings();
     initializeDropdowns();
@@ -2879,7 +2918,14 @@ window.onload = function() {
 
 function opMod(id, s) { 
     document.getElementById(id).style.display = s ? 'block' : 'none'; 
-    // Ledger band hote hi card bhi hide karein
+    
+	// Scroll bar fix
+    if (s) {
+        document.body.style.overflow = 'hidden'; // Modal khulne par scroll band
+    } else {
+        document.body.style.overflow = 'hidden';   // Modal band hone par scroll chalu
+    }
+
     if (id === 'profModal' && !s) {
         if (document.getElementById('idV')) document.getElementById('idV').style.display = 'none';
     }
@@ -3258,6 +3304,3 @@ function resetFeeForm() {
 
 
 </html>
-
-
-
