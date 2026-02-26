@@ -1600,45 +1600,61 @@ function loadAllLibraryData() {
     const loader = document.getElementById('loader');
     const mainContainer = document.getElementById('main-container');
 
-    if(!uid) return;
-
-    // --- STEP 1: INSTANT LOAD FROM CACHE ---
-    // Browser memory se check karo agar pehle ka data pada hai
-    const cachedData = localStorage.getItem(`cache_data_${uid}`);
-    if (cachedData) {
-        const data = JSON.parse(cachedData);
-        db = data.students || [];
-        ex = data.expenses || [];
-        tr = data.trash || [];
-        exStd = data.exStudents || [];
-        
-        drawMain(); // Table turant bhar jayegi
-        loader.style.display = 'none'; // Loader turant hat jayega
-        mainContainer.style.display = 'flex'; // Dashboard turant dikhega
+    if (!uid) {
+        console.error("User ID not found! Redirecting to login.");
+        return;
     }
 
-    // --- STEP 2: BACKGROUND SYNC WITH FIREBASE ---
-    // Firebase se naya data fetch karo (Ye background mein hota rahega)
+    // --- STEP 1: INSTANT LOAD FROM CACHE (Speed Boost) ---
+    // Jab tak internet se data aaye, tab tak purana data dikhayein
+    const cachedData = localStorage.getItem(`cache_data_${uid}`);
+    if (cachedData) {
+        try {
+            const data = JSON.parse(cachedData);
+            db = data.students || [];
+            ex = data.expenses || [];
+            tr = data.trash || [];
+            exStd = data.exStudents || [];
+            
+            // UI Render karein (Instant)
+            drawMain();
+            if (typeof drawEx === 'function') drawEx(); // Expense page ke liye
+            
+            loader.style.display = 'none'; 
+            mainContainer.style.display = 'flex';
+            console.log("Data loaded instantly from Cache.");
+        } catch (e) {
+            console.error("Cache parsing error:", e);
+        }
+    }
+
+    // --- STEP 2: BACKGROUND SYNC (Get Fresh Data) ---
+    // 'on' listener lagane se data real-time update hota rahega
     rdb.ref(`library_data/Users/${uid}/data`).on('value', (snap) => {
         const data = snap.val() || {};
         
-        // Memory (Cache) ko naye data se update karo
+        // Memory update karein
         localStorage.setItem(`cache_data_${uid}`, JSON.stringify(data));
 
-        // Variables ko naye data se bharo
         db = data.students || [];
         ex = data.expenses || [];
         tr = data.trash || [];
         exStd = data.exStudents || [];
         
-        drawMain(); // Agar DB mein koi badlav hua hai toh screen apne aap update ho jayegi
+        // UI Refresh (Agar koi change hua ho)
+        drawMain();
+        if (typeof drawEx === 'function') drawEx();
         
-        // Loader hide aur Container show (Security backup agar cache khali ho)
+        // Dashboard Stats (Student Count etc.)
+        if(document.getElementById('stat-std')) document.getElementById('stat-std').innerText = db.length;
+
+        // Loader hide karein agar cache nahi tha
         loader.style.display = 'none';
         mainContainer.style.display = 'flex';
+        console.log("Background Sync Complete with Firebase.");
     });
 
-    // Dashboard Stats (All Time Paid) Load
+    // --- STEP 3: REVENUE STATS (All Time Paid) ---
     rdb.ref(`library_data/Users/${uid}/collections`).on('value', (snap) => {
         const collections = snap.val();
         let total = 0;
@@ -1651,10 +1667,10 @@ function loadAllLibraryData() {
         if(statEl) statEl.innerText = '₹' + total.toLocaleString();
     });
 
+    // Baki settings load karein
     loadSettings();
-    initializeDropdowns();
+    if(typeof initializeDropdowns === 'function') initializeDropdowns();
 }
-
 
 function saveStd() {
     const id = document.getElementById('eid').value;
@@ -1744,7 +1760,7 @@ function previewPremiumPhoto(event) {
 
     if (file) {
         // Validation: 25KB check (Aapke UI ke hisab se)
-        if (file.size > 25600) { 
+        if (file.size > 26600) { 
             alert("🚨 Photo size is more than 25KB .");
             event.target.value = ''; 
             return;
@@ -2202,7 +2218,7 @@ function reAdmission(index) {
     window.pendingReAdmissionId = s.id; 
     
     opMod('addModal', true);
-    alert("Purana record mil gaya hai! Kripya New Seat aur Shift check karke Save karein.");
+    alert("Old data founded! Please Assign New Seat and Shift.");
 }
 
 
@@ -3300,39 +3316,50 @@ function downloadPendingPDF() {
 }
 
 function downloadExExcel() {
-    // 1. Check karein ki kya data available hai
-    if (!ex || ex.length === 0) {
-        return alert("No Data for download");
+    // 1. Filter values uthana
+    const fromDate = document.getElementById('exFromDate').value;
+    const toDate = document.getElementById('exToDate').value;
+
+    // 2. Data decide karna (Filtered ya Full)
+    const dataToExport = ex.filter(item => {
+        if (!fromDate || !toDate) return true; // Filter nahi hai toh sab le lo
+        
+        // Date format convert (DD/MM/YYYY to YYYY-MM-DD)
+        const parts = item.date.split('/');
+        const itemDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        
+        return itemDate >= fromDate && itemDate <= toDate;
+    });
+
+    // 3. Check karein ki data hai ya nahi
+    if (dataToExport.length === 0) {
+        return alert("Chuni gayi dates ke beech koi data nahi mila!");
     }
 
-    // 2. Excel ke liye data format taiyar karein
-    const excelData = ex.map(item => ({
+    // 4. Excel format mein badalna
+    const excelData = dataToExport.map(item => ({
         "Date": item.date,
         "Reason / Description": item.reason,
         "Amount (INR)": item.amt
     }));
 
-    // 3. SheetJS (XLSX) library ka use karke file generate karein
+    // 5. Download trigger karna
     try {
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 
-        // Column width set karein taaki data saaf dikhe
-        const wscols = [
-            {wch: 15}, // Date column
-            {wch: 40}, // Reason column
-            {wch: 15}  // Amount column
-        ];
-        worksheet['!cols'] = wscols;
+        // Column width adjustment
+        worksheet['!cols'] = [{wch: 15}, {wch: 40}, {wch: 15}];
 
-        // 4. File download trigger karein
-        XLSX.writeFile(workbook, `Library_Expenses_${new Date().toLocaleDateString()}.xlsx`);
-        
-        console.log("Expense Excel downloaded successfully.");
+        const fileName = fromDate && toDate 
+            ? `Expenses_${fromDate}_to_${toDate}.xlsx` 
+            : `All_Expenses_${new Date().toLocaleDateString()}.xlsx`;
+
+        XLSX.writeFile(workbook, fileName);
     } catch (error) {
-        console.error("Excel generation error:", error);
-        alert("ERROR.");
+        console.error("Excel Error:", error);
+        alert("Excel file banane mein dikkat aayi!");
     }
 }
 
