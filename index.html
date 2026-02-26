@@ -1155,7 +1155,25 @@
         </button>
     </div>
 
-    <div style="background:white; padding:8px; border-radius:15px; margin-bottom:7px; display:flex; gap:10px;">
+    <div style="background:#fff; padding:10px; border-radius:12px; margin-bottom:10px; display:flex; gap:15px; align-items:center; border:1px solid #ddd;">
+        <div>
+            <label style="font-size:12px; font-weight:bold;">From:</label>
+            <input type="date" id="exFromDate" class="premium-input" style="width:140px; padding:3px;">
+        </div>
+        <div>
+            <label style="font-size:12px; font-weight:bold;">To:</label>
+            <input type="date" id="exToDate" class="premium-input" style="width:140px; padding:3px;">
+        </div>
+        <button onclick="drawEx()" class="btn-act" style="background:var(--accent); margin-top:15px;">🔍 Filter</button>
+        <button onclick="resetExFilter()" class="btn-act" style="background:#95a5a6; margin-top:15px;">Reset</button>
+        
+        <div style="margin-left:auto; background:#f1c40f; color:#000; padding:8px 20px; border-radius:10px; text-align:right;">
+            <small style="display:block; font-size:10px; font-weight:bold;">TOTAL EXPENSE</small>
+            <span id="totalExDisplay" style="font-size:18px; font-weight:800;">₹0</span>
+        </div>
+    </div>
+
+    <div style="background:white; padding:8px; border-radius:15px; margin-bottom:7px; display:flex; gap:10px; border:1px solid #eee;">
         <input type="text" id="exReason" placeholder="Reason..." style="flex:2; padding:8px; border:1px solid #ddd; border-radius:8px;">
         <input type="number" id="exAmt" placeholder="Amount" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:8px;">
         <button onclick="addExpense()" style="background:var(--danger); color:white; border:none; padding:10px 25px; border-radius:8px; font-weight:bold; cursor:pointer;">
@@ -1166,7 +1184,7 @@
     <div class="table-wrapper">
         <table>
             <thead>
-                <tr style="background:#34495e; color:white; ">
+                <tr style="background:#34495e; color:white;">
                     <th>Date</th>
                     <th>Reason</th>
                     <th>Amount</th>
@@ -1621,7 +1639,7 @@ function saveStd() {
         return;
     }
 
-    // --- SEAT VALIDATION (Baaki sab same rahega) ---
+    // Seat Conflict Validation
     const conflict = db.find(s => {
         if (id && s.id == id) return false;
         if (s.seat == st) {
@@ -1633,14 +1651,14 @@ function saveStd() {
     });
 
     if (conflict) {
-        alert(`🚨 Seat Conflict! Seat No. ${st} is already occupied by ${conflict.name}.`);
+        alert(`🚨 Seat Conflict! Seat No. ${st} is already occupied.`);
         return;
     }
 
     // --- DATA PREPARATION: PURANA DATA FETCH KAREIN ---
-    const photoData = document.getElementById('formPhotoPreview').src;
     let oldFeeHistory = [];
     let oldFeeObject = {};
+    let finalId = id ? parseInt(id) : Date.now();
 
     // Check karein agar ye Re-admission hai
     if (window.pendingReAdmissionId) {
@@ -1648,18 +1666,12 @@ function saveStd() {
         if (sourceStudent) {
             oldFeeHistory = sourceStudent.feeHistory || [];
             oldFeeObject = sourceStudent.fee || {};
-        }
-    } else if (id) {
-        // Agar normal edit mode hai
-        const sourceStudent = db.find(x => x.id == id);
-        if (sourceStudent) {
-            oldFeeHistory = sourceStudent.feeHistory || [];
-            oldFeeObject = sourceStudent.fee || {};
+            finalId = sourceStudent.id; // Purani ID hi rakhein
         }
     }
 
     const sData = {
-        id: id ? parseInt(id) : (window.pendingReAdmissionId || Date.now()), // Purani ID preserve karein
+        id: finalId,
         name: name,
         father: document.getElementById('fn').value || '',
         mother: document.getElementById('mn').value || '',
@@ -1669,9 +1681,8 @@ function saveStd() {
         shift: sh,
         rt: document.getElementById('rt').value || 0,
         address: document.getElementById('ad').value || '',
-        photo: photoData.startsWith('data:image') ? photoData : '',
+        photo: document.getElementById('formPhotoPreview').src.startsWith('data:image') ? document.getElementById('formPhotoPreview').src : '',
         date: new Date().toLocaleDateString('en-IN'),
-        // --- FIX: Purana data yahan bacha rahega ---
         feeHistory: oldFeeHistory, 
         fee: oldFeeObject
     };
@@ -1682,6 +1693,7 @@ function saveStd() {
         db[idx] = sData;
     } else {
         db.push(sData);
+        // Agar Re-admission tha, toh Ex-list se delete karein
         if (window.pendingReAdmissionId) {
             exStd = exStd.filter(student => student.id !== window.pendingReAdmissionId);
             window.pendingReAdmissionId = null; 
@@ -1692,9 +1704,7 @@ function saveStd() {
     opMod('addModal', false);
     clrF();
     
-    if(document.getElementById('customPinInput')) document.getElementById('customPinInput').value = "";
-
-    alert("✅ Admission Successful!");
+    alert("✅ Admission Successful! Student list updated.");
     drawMain();
     if(typeof drawExStudents === "function") drawExStudents();
 }
@@ -2140,15 +2150,15 @@ function reAdmission(index) {
     if(!s) return;
     
     // Form mein data bharna
-    document.getElementById('eid').value = s.id;
+    document.getElementById('eid').value = ''; // ID khali rakhein taaki naya admission treat ho par data purana use ho
     document.getElementById('n').value = s.name;
     document.getElementById('fn').value = s.father || '';
-	document.getElementById('mn').value = s.mother || '';
+    document.getElementById('mn').value = s.mother || '';
     document.getElementById('p').value = s.phone || '';
-    document.getElementById('st').value = s.seat;
-	document.getElementById('en').value = s.emergency || '';
+    document.getElementById('st').value = s.seat; // Purani seat default
+    document.getElementById('en').value = s.emergency || '';
     document.getElementById('sh').value = s.shift;
-    document.getElementById('rt').value = s.rt || s.Fee || 0;
+    document.getElementById('rt').value = s.rt || 0;
     document.getElementById('ad').value = s.address || '';
     
     // Student photo preview handle karein
@@ -2160,12 +2170,13 @@ function reAdmission(index) {
         if(uploadTxt) uploadTxt.style.display = 'none';
     }
 
-    // Index ko save karein taaki save hone par ID ke basis par Ex-list se delete karein
+    // Is ID ko temporary save karein taaki saveStd() ise pehchan sake
     window.pendingReAdmissionId = s.id; 
     
     opMod('addModal', true);
-    alert("Old data founded! Please select new seat and shift.");
+    alert("Purana record mil gaya hai! Kripya New Seat aur Shift check karke Save karein.");
 }
+
 
 // Permanent Delete from Ex-Student List
 function deleteExStudent(index) {
@@ -2227,16 +2238,15 @@ function addExpense() {
     const reason = document.getElementById('exReason').value.trim();
     const amount = parseFloat(document.getElementById('exAmt').value);
 
-    // Basic Validation
     if (!reason || isNaN(amount) || amount <= 0) {
         alert("Please enter a valid Reason and Amount!");
         return;
     }
 
-    // Flag set karein taaki verify hone ke baad system ko pata chale kya save karna hai
+    // Yeh line zaroori hai taaki verifyAndProcessFee() ko pata chale kya save karna hai
     window.pinActionType = "EXPENSE"; 
 
-    // Same PIN Modal open karein jo fee payment mein hota hai
+    // PIN Modal open karein
     const pMod = document.getElementById('pinModal');
     if(pMod) {
         pMod.style.display = 'flex'; 
@@ -2591,27 +2601,58 @@ function drawMain() {
 }
 }
 
+// Expenses ko draw aur filter karne ka naya function
 function drawEx() {
     const tb = document.getElementById('exTbody');
     if (!tb) return;
     
+    const fromDate = document.getElementById('exFromDate').value;
+    const toDate = document.getElementById('exToDate').value;
+    
     tb.innerHTML = '';
-    let total = 0;
+    let totalAmt = 0;
 
-    ex.forEach((item) => {
-        total += parseFloat(item.amt || 0);
+    // Filter Logic
+    const filteredEx = ex.filter(item => {
+        if (!fromDate || !toDate) return true; // Agar date select nahi hai to sab dikhao
+        
+        // Date format convert (DD/MM/YYYY to YYYY-MM-DD for comparison)
+        const parts = item.date.split('/');
+        const itemDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        
+        return itemDate >= fromDate && itemDate <= toDate;
+    });
+
+    filteredEx.reverse().forEach((item) => {
+        const amt = parseFloat(item.amt || 0);
+        totalAmt += amt;
+        
         tb.innerHTML += `
             <tr>
                 <td>${item.date}</td>
                 <td>${item.reason}</td>
-                <td>₹${item.amt}</td>
+                <td>₹${amt}</td>
                 <td>
-                    <button class="btn-act" style="background:var(--danger);" onclick="toTrsh(${item.id}, 'expense')">
+                    <button class="btn-act" style="background:var(--danger); padding:5px 10px;" onclick="toTrsh(${item.id}, 'expense')">
                         <i class="fa fa-trash"></i>
                     </button>
                 </td>
             </tr>`;
     });
+
+    // Total Update
+    document.getElementById('totalExDisplay').innerText = '₹' + totalAmt.toLocaleString();
+
+    if (filteredEx.length === 0) {
+        tb.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">No expenses found for selected range.</td></tr>';
+    }
+}
+
+// Filter reset karne ke liye
+function resetExFilter() {
+    document.getElementById('exFromDate').value = '';
+    document.getElementById('exToDate').value = '';
+    drawEx();
 }
 
 function tglID() {
@@ -2772,7 +2813,33 @@ function verifyAndProcessFee() {
     }
 }
 
+function executeExpenseSaving() {
+    const reason = document.getElementById('exReason').value.trim();
+    const amount = parseFloat(document.getElementById('exAmt').value);
+    const today = new Date().toLocaleDateString('en-IN');
 
+    const newExp = {
+        id: Date.now(),
+        date: today,
+        reason: reason,
+        amt: amount
+    };
+
+    // Global array 'ex' mein data add karein
+    ex.push(newExp);
+
+    // Cloud (Firebase) par sync karein
+    sync();
+
+    // UI refresh karein
+    drawEx();
+    
+    // Inputs khali karein
+    document.getElementById('exReason').value = '';
+    document.getElementById('exAmt').value = '';
+
+    alert("✅ Expense added successfully!");
+}
 
 function changePin() {
     const oldP = document.getElementById('oldPin').value;
@@ -3333,7 +3400,6 @@ function resetFeeForm() {
     // Current Student Global Variable reset
     cur = null; 
 }
-
 </script>
 </body>
 
