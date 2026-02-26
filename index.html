@@ -567,7 +567,35 @@
         .menu-card { background: #ffffff; border: 1px solid #ddd; border-radius: 18px; padding: 25px 15px; text-align: center; cursor: pointer; transition: 0.3s; color: #2c3e50; font-weight: 700; }
         .menu-card:hover { background: linear-gradient(145deg, #1a1a1a, #000000) !important; color: #f1c40f !important; border-color: #f1c40f; transform: translateY(-5px); }
         .menu-card b { font-size: 45px; display: block; margin-bottom: 12px; }
-        .section-view { display: none; flex-direction: column; flex-grow: 1; overflow: hidden; }
+        /* Sabhi sections ko scrollable banane ke liye */
+.section-view {
+    display: none;
+    flex-direction: column;
+    flex-grow: 1;
+    height: 70vh; /* Screen ki fixed height taaki scrollbar trigger ho */
+    overflow-y: auto !important; /* Vertical scrollbar enable karega */
+    padding-right: 5px; /* Scrollbar aur table ke beech thoda gap */
+    scrollbar-width: thin; /* Firefox ke liye premium look */
+}
+
+/* Chrome/Safari ke liye premium scrollbar styling */
+.section-view::-webkit-scrollbar {
+    width: 6px;
+}
+.section-view::-webkit-scrollbar-thumb {
+    background: #34495e;
+    border-radius: 10px;
+}
+.section-view::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+/* Dashboard scrollable area fix */
+#dashboard-view {
+    max-height: 75vh;
+    overflow-y: auto;
+    padding: 10px;
+}
         .active-section { display: flex; }
         .table-wrapper { flex-grow: 1; overflow-y: auto; border-radius: 12px; background: white; font-size: 13px; }
         table { width: 100%; border-collapse: collapse; }
@@ -3025,7 +3053,7 @@ function opMod(id, s) {
     if (s) {
         document.body.style.overflow = 'hidden'; // Modal khulne par scroll band
     } else {
-        document.body.style.overflow = 'hidden';   // Modal band hone par scroll chalu
+        document.body.style.overflow = 'auto';   // Modal band hone par scroll chalu
     }
 
     if (id === 'profModal' && !s) {
@@ -3400,6 +3428,7 @@ function resetFeeForm() {
     // Current Student Global Variable reset
     cur = null; 
 }
+
 </script>
 </body>
 
